@@ -1,0 +1,6 @@
+{
+  "name": "مذاق | MAZAQ",
+  "description": "منصة رقمية فاخرة للمخبوزات، الحلويات، المعجنات وتجهيز الحفلات مع نظام إدارة وطلبات متكامل",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
