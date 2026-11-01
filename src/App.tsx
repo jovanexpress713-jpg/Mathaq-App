@@ -42,6 +42,18 @@ export default function App() {
     }
   }, []);
 
+  // Keep the offline indicator reactive when connectivity changes.
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const updateConnection = () => setIsOnline(navigator.onLine);
+    window.addEventListener('online', updateConnection);
+    window.addEventListener('offline', updateConnection);
+    return () => {
+      window.removeEventListener('online', updateConnection);
+      window.removeEventListener('offline', updateConnection);
+    };
+  }, []);
+
   // Splash Screen State
   const [showSplash, setShowSplash] = useState(true);
 
@@ -251,6 +263,11 @@ export default function App() {
             : 'max-w-7xl'
         } flex flex-col flex-1 bg-[#0c0907] relative`}
       >
+        {!isOnline && (
+          <div role="status" className="mx-3 mt-3 rounded-xl border border-amber-700/50 bg-amber-950/60 px-3 py-2 text-center text-xs text-amber-200">
+            أنت غير متصل بالإنترنت — تتصفح آخر المنتجات والأسعار المحفوظة. إرسال الطلب وتأكيد السعر يحتاجان اتصالاً.
+          </div>
+        )}
         {/* Navigation Header */}
         <Header
           cartCount={cartCount}
