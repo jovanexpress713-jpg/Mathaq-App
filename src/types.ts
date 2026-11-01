@@ -73,6 +73,7 @@ export interface Product {
   image: string;
   gallery: string[];
   price: number;
+  wholesalePrice?: number;
   oldPrice?: number;
   rating: number;
   reviewsCount: number;
