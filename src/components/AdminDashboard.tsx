@@ -28,6 +28,7 @@ import {
   CheckCircle2,
   Store,
   TicketPercent,
+  Bell,
 } from 'lucide-react';
 import {
   Category,
@@ -43,6 +44,7 @@ import { api, removeAuthToken } from '../services/api';
 import { MazaqLogo } from './MazaqLogo';
 import { GroceryAccountsPanel } from './GroceryAccountsPanel';
 import { CouponsPanel } from './CouponsPanel';
+import { NotificationsPanel } from './NotificationsPanel';
 
 interface AdminDashboardProps {
   onClose: () => void;
@@ -56,6 +58,7 @@ type AdminTab =
   | 'categories'
   | 'offers'
   | 'coupons'
+  | 'notifications'
   | 'orders'
   | 'settings'
   | 'audit';
@@ -302,6 +305,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               { id: 'categories', label: 'أقسام المتجر', icon: LayoutGrid, badge: categories.length },
               { id: 'offers', label: 'سلايدر العروض الترويجية', icon: Sparkles, badge: offers.length },
               { id: 'coupons', label: 'الكوبونات والتسويق', icon: TicketPercent },
+              { id: 'notifications', label: 'مركز الإشعارات', icon: Bell },
               { id: 'settings', label: 'إعدادات المتجر والتوصيل', icon: SettingsIcon },
               { id: 'audit', label: 'سجل العمليات والرقابة', icon: FileText },
             ].map((item) => {
@@ -380,6 +384,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <option value="categories">الأقسام</option>
                 <option value="offers">العروض</option>
                 <option value="coupons">الكوبونات والتسويق</option>
+                <option value="notifications">الإشعارات</option>
                 <option value="settings">الإعدادات</option>
                 <option value="audit">السجل</option>
               </select>
@@ -393,6 +398,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {activeTab === 'categories' && 'إدارة أقسام وتصنيفات المتجر'}
               {activeTab === 'offers' && 'إدارة بنرات وعروض السلايدر الترويجي'}
               {activeTab === 'coupons' && 'مركز التسويق والكوبونات'}
+              {activeTab === 'notifications' && 'مركز الإشعارات والتنبيهات'}
               {activeTab === 'settings' && 'إعدادات المتجر ومناطق التوصيل'}
               {activeTab === 'audit' && 'سجل الرقابة والعمليات الإدارية'}
             </h1>
@@ -840,6 +846,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           )}
 
           {activeTab === 'coupons' && <CouponsPanel />}
+          {activeTab === 'notifications' && <NotificationsPanel />}
 
           {/* 6. SETTINGS */}
           {activeTab === 'settings' && settings && (
