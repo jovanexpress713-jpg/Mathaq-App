@@ -476,6 +476,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
       {/* STEP 3: Order Review */}
       {currentStep === 3 && (
         <div className="space-y-4">
+          {accountType === 'grocery' && <div className="rounded-xl border border-[#8a642d] bg-[#251b14] p-3 text-[11px] leading-5 text-[#e7c994]">تم اعتماد حساب الجملة. سيحسب الخادم أسعار الجملة الفعلية عند تأكيد الطلب، ولن نعتمد أسعار الأفراد الظاهرة في السلة.</div>}
           {/* Items Summary */}
           <div className="p-4 bg-[#18110c] border border-[#2d2118] rounded-2xl space-y-3">
             <h2 className="text-xs font-bold text-[#c69a59]">محتويات الطلب ({cart.length} أصناف)</h2>
@@ -486,7 +487,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     <span className="font-bold text-[#c69a59]">{item.quantity}x</span>
                     <span className="text-[#f5ebe1]">{item.name}</span>
                   </div>
-                  <span className="text-[#b8a594]">{item.totalPrice} ريال</span>
+                  <span className="text-[#b8a594]">{accountType === 'grocery' ? 'سعر الجملة عند التأكيد' : `${item.totalPrice} ريال`}</span>
                 </div>
               ))}
             </div>
@@ -518,6 +519,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           </div>
 
           {/* Financial Totals */}
+          {accountType === 'individual' ? (
           <div className="p-4 bg-[#18110c] border border-[#2d2118] rounded-2xl space-y-2 text-xs">
             <div className="flex justify-between text-[#b8a594]">
               <span>مجموع المنتجات:</span>
@@ -537,6 +539,9 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
               </div>
             </div>
           </div>
+          ) : (
+            <div className="p-4 bg-[#18110c] border border-[#2d2118] rounded-2xl text-xs text-[#b8a594]">سيظهر الإجمالي النهائي بسعر الجملة بعد إعادة احتساب المنتجات على الخادم عند تأكيد الطلب.</div>
+          )}
         </div>
       )}
 
@@ -563,7 +568,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             ) : (
               <>
                 <MessageCircle className="w-5 h-5 fill-current" />
-                <span className="text-sm font-black">تأكيد الطلب والدفع عبر الواتساب ({grandTotal} ريال)</span>
+                <span className="text-sm font-black">{accountType === 'grocery' ? 'تأكيد طلب الجملة والدفع عبر الواتساب' : `تأكيد الطلب والدفع عبر الواتساب (${grandTotal} ريال)`}</span>
               </>
             )}
           </button>
