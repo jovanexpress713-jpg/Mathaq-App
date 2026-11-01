@@ -473,6 +473,21 @@ router.patch('/orders/:id/status', authenticateAdmin, requireRoles(['OWNER', 'AD
 });
 
 // ==========================================
+ // ADMIN NOTIFICATION INBOX
+// ==========================================
+router.get('/admin/notifications', authenticateAdmin, requireRoles(['OWNER', 'ADMIN', 'MANAGER']), (req: AuthenticatedRequest, res: Response) => {
+  res.json({ success: true, data: db.getNotifications(req.query.unread === 'true') });
+});
+router.patch('/admin/notifications/read-all', authenticateAdmin, requireRoles(['OWNER', 'ADMIN', 'MANAGER']), (_req: AuthenticatedRequest, res: Response) => {
+  db.markAllNotificationsRead();
+  res.json({ success: true, message: 'تم تعليم الإشعارات كمقروءة' });
+});
+router.patch('/admin/notifications/:id/read', authenticateAdmin, requireRoles(['OWNER', 'ADMIN', 'MANAGER']), (req: AuthenticatedRequest, res: Response) => {
+  if (!db.markNotificationRead(req.params.id)) return res.status(404).json({ success: false, error: 'الإشعار غير موجود' });
+  res.json({ success: true, message: 'تم تعليم الإشعار كمقروء' });
+});
+
+// ==========================================
 // 6. AUTHENTICATION & ADMIN
 // ==========================================
 
