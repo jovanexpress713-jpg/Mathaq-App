@@ -28,5 +28,8 @@ jobs:
       - name: TypeScript validation
         run: npm run lint
 
+      - name: Server security tests
+        run: npm test
+
       - name: Production build
         run: npm run build
