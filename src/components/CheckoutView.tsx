@@ -74,6 +74,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
         : await api.loginGrocery(groceryForm.phone, groceryForm.password);
       setGroceryAccount(result.account);
       setGroceryToken(result.token);
+      setCustomer({ ...customer, phone: groceryForm.phone, ...(result.account.contactName ? { name: result.account.contactName } : {}) });
       setGroceryMessage(result.account.status === 'APPROVED' ? 'تم تسجيل الدخول. أسعار الجملة مفعّلة لحسابك.' : 'تم استلام بيانات البقالة. حسابك بانتظار موافقة الإدارة، ويمكنك الطلب بسعر الأفراد الآن.');
     } catch (err: any) {
       setGroceryMessage(err.message || 'تعذر إكمال العملية');
@@ -160,13 +161,13 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
         cleanPhone = '967' + cleanPhone;
       }
 
-      const itemsList = cart
+      const itemsList = order.items
         .map((i) => {
           const optStr =
             i.selectedOptions && i.selectedOptions.length > 0
               ? ` (${i.selectedOptions.map((o) => o.choiceName || o.name).join('، ')})`
               : '';
-          return `▫️ *${i.quantity}x ${i.name}*${optStr} = ${i.totalPrice} ريال`;
+          return `▫️ *${i.quantity}x ${i.productName || i.name}*${optStr} = ${i.totalItemPrice ?? i.totalPrice ?? 0} ريال`;
         })
         .join('\n');
 
@@ -181,9 +182,9 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
         `━━━━━━━━━━━━━━━━━━━\n` +
         `*الأصناف المطلوبة:*\n${itemsList}\n` +
         `━━━━━━━━━━━━━━━━━━━\n` +
-        `*مجموع الأصناف:* ${itemsTotal} ريال\n` +
-        `*رسوم التوصيل:* ${deliveryFee === 0 ? 'مجاناً ✨' : `${deliveryFee} ريال`}\n` +
-        `*الإجمالي النهائي المطلوب:* ${grandTotal} ريال\n` +
+        `*مجموع الأصناف:* ${order.itemsTotal} ريال\n` +
+        `*رسوم التوصيل:* ${order.deliveryFee === 0 ? 'مجاناً ✨' : `${order.deliveryFee} ريال`}\n` +
+        `*الإجمالي النهائي المطلوب:* ${order.grandTotal} ريال\n` +
         `*طريقة الدفع:* الدفع والتحويل عبر الواتساب 💬\n` +
         (orderNotes ? `*ملاحظات إضافية:* ${orderNotes}\n` : '') +
         `━━━━━━━━━━━━━━━━━━━\n` +
