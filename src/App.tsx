@@ -39,7 +39,6 @@ export default function App() {
   // App View & Tab State
   const [currentTab, setCurrentTab] = useState<TabKey>('home');
   const [activeOverlay, setActiveOverlay] = useState<'cart' | 'checkout' | 'tracking' | null>(null);
-  const [showAdminPortal, setShowAdminPortal] = useState(false);
 
   // Viewport Frame Toggle (Mobile Mockup Frame vs Full Responsive Desktop)
   const [isMobileFrame, setIsMobileFrame] = useState(false);
@@ -216,6 +215,10 @@ export default function App() {
     return p.categoryId === selectedCategoryId;
   });
 
+  if (window.location.pathname.replace(/\/+$/, '') === '/admin') {
+    return <div className="min-h-screen bg-[#0c0907]"><AdminDashboard onClose={() => { window.location.href = '/'; }} onDataChanged={loadInitialData} /></div>;
+  }
+
   return (
     <div
       className="min-h-screen bg-[#0c0907] text-[#f5ebe1] flex flex-col items-center justify-start selection:bg-[#c69a59] selection:text-[#0c0907]"
@@ -243,7 +246,6 @@ export default function App() {
         <Header
           cartCount={cartCount}
           onOpenCart={() => setActiveOverlay('cart')}
-          onOpenAdmin={() => setShowAdminPortal(true)}
           onGoHome={() => {
             setActiveOverlay(null);
             setCurrentTab('home');
@@ -439,7 +441,6 @@ export default function App() {
                   ordersCount={myOrders.length}
                   onGoHome={() => setCurrentTab('home')}
                   onGoOrders={() => setCurrentTab('orders')}
-                  onOpenAdmin={() => setShowAdminPortal(true)}
                 />
               )}
             </>
@@ -472,15 +473,6 @@ export default function App() {
         />
       )}
 
-      {/* ========================================================
-          MODAL: OWNER ADMIN PORTAL
-      ======================================================== */}
-      {showAdminPortal && (
-        <AdminDashboard
-          onClose={() => setShowAdminPortal(false)}
-          onDataChanged={() => loadInitialData()}
-        />
-      )}
     </div>
   );
 }
