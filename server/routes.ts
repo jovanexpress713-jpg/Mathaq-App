@@ -410,7 +410,7 @@ router.post('/orders', (req: Request, res: Response) => {
 });
 
 // Get Orders (Admin or Customer query by phone)
-router.get('/orders', (req: Request, res: Response) => {
+router.get('/orders', authenticateAdmin, requireRoles(['OWNER', 'ADMIN', 'MANAGER']), (req: AuthenticatedRequest, res: Response) => {
   try {
     const phone = req.query.phone as string | undefined;
     const orders = db.getOrders(phone);
@@ -421,7 +421,7 @@ router.get('/orders', (req: Request, res: Response) => {
 });
 
 // Get Order Details by ID or Number
-router.get('/orders/:id', (req: Request, res: Response) => {
+router.get('/orders/:id', authenticateAdmin, requireRoles(['OWNER', 'ADMIN', 'MANAGER']), (req: AuthenticatedRequest, res: Response) => {
   try {
     const order = db.getOrderById(req.params.id);
     if (!order) {
