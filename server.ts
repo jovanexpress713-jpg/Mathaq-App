@@ -18,7 +18,7 @@ async function startServer() {
   app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
   // Serve static uploads
-  const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+  const uploadsDir = path.resolve(process.env.MAZAQ_UPLOADS_DIR || path.join(process.cwd(), 'public', 'uploads'));
   if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
   }
