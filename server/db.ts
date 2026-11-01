@@ -993,7 +993,7 @@ class Database {
       if (accountType === 'grocery' && (unitBasePrice === undefined || unitBasePrice === null || !Number.isFinite(unitBasePrice))) return { success: false, error: `المنتج ${product.name} غير متاح بسعر الجملة حالياً` };
       let itemPrice = unitBasePrice as number;
       const resolved = resolveProductSelections(product.options || [], reqItem.selectedOptions);
-      if (!resolved.success) return { success: false, error: resolved.error };
+      if (resolved.success === false) return { success: false, error: resolved.error };
       const chosenOptions = resolved.selections;
       for (const selection of chosenOptions) itemPrice += selection.priceModifier;
 
