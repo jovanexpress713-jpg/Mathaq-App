@@ -1,0 +1,21 @@
+{
+  "id": "/",
+  "name": "مذاق | MADHAQ",
+  "short_name": "مذاق",
+  "description": "حلويات ومعجنات ومخبوزات مذاق",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#080503",
+  "theme_color": "#080503",
+  "icons": [
+    {
+      "src": "/mazaq_logo.jpg",
+      "sizes": "any",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}
