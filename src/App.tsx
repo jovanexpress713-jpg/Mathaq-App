@@ -33,6 +33,15 @@ import { AccountView } from './components/AccountView';
 import { AdminDashboard } from './components/AdminDashboard';
 
 export default function App() {
+  // Register the production service worker for installability and resilient app-shell caching.
+  useEffect(() => {
+    if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
+      navigator.serviceWorker.register('/sw.js').catch((error) => {
+        console.warn('MAZAQ service worker registration failed:', error);
+      });
+    }
+  }, []);
+
   // Splash Screen State
   const [showSplash, setShowSplash] = useState(true);
 
