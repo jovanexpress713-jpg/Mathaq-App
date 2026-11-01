@@ -199,19 +199,6 @@ export const AccountView: React.FC<AccountViewProps> = ({
         </a>
 
       </div>
-            <div>
-              <span className="text-xs font-bold text-[#c69a59] block">
-                لوحة تحكم الإدارة (Owner Portal)
-              </span>
-              <span className="text-[10px] text-[#857361]">
-                إدارة المنتجات، العروض، الطلبات والإعدادات
-              </span>
-            </div>
-          </div>
-          <ChevronLeft className="w-4 h-4 text-[#c69a59]" />
-        </button>
-      </div>
-
       {/* Bottom Sign-out or Share Card */}
       <div className="pt-4">
         <button
