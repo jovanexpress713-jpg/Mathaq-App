@@ -4,13 +4,12 @@
  */
 
 import React from 'react';
-import { ShoppingBag, ShieldCheck, Phone, Smartphone, Monitor } from 'lucide-react';
+import { ShoppingBag, Phone, Smartphone, Monitor } from 'lucide-react';
 import { MazaqLogo } from './MazaqLogo';
 
 interface HeaderProps {
   cartCount: number;
   onOpenCart: () => void;
-  onOpenAdmin: () => void;
   onGoHome: () => void;
   isMobileFrame: boolean;
   onToggleViewMode: () => void;
@@ -21,7 +20,6 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   cartCount,
   onOpenCart,
-  onOpenAdmin,
   onGoHome,
   isMobileFrame,
   onToggleViewMode,
@@ -72,17 +70,6 @@ export const Header: React.FC<HeaderProps> = ({
               <Phone className="h-4 w-4" />
             </a>
           )}
-
-          <button
-            type="button"
-            id="header-admin-btn"
-            onClick={onOpenAdmin}
-            className="flex h-10 items-center gap-1.5 rounded-xl border border-[#523a23] bg-[#1e1510] px-2.5 text-xs font-bold text-[#d8b477] transition-all hover:border-[#c69a59] hover:bg-[#2a1c14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e5c378] sm:px-3"
-            title="لوحة الإدارة والتحكم"
-          >
-            <ShieldCheck className="h-4 w-4" />
-            <span className="hidden sm:inline">لوحة الإدارة</span>
-          </button>
 
           <button
             type="button"
