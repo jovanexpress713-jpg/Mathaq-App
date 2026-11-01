@@ -11,6 +11,7 @@ import {
   ShopSettings,
   AdminUser,
   AuditLog,
+  DiscountCoupon,
 } from '../types';
 
 const API_BASE = '/api';
@@ -122,6 +123,12 @@ export const api = {
       method: 'DELETE',
     }),
 
+  // Marketing coupons
+  getCoupons: () => fetchJson<DiscountCoupon[]>(`${API_BASE}/admin/coupons`),
+  createCoupon: (coupon: Partial<DiscountCoupon>) => fetchJson<DiscountCoupon>(`${API_BASE}/admin/coupons`, { method: 'POST', body: JSON.stringify(coupon) }),
+  updateCoupon: (id: string, coupon: Partial<DiscountCoupon>) => fetchJson<DiscountCoupon>(`${API_BASE}/admin/coupons/${id}`, { method: 'PUT', body: JSON.stringify(coupon) }),
+  deleteCoupon: (id: string) => fetchJson<{ message: string }>(`${API_BASE}/admin/coupons/${id}`, { method: 'DELETE' }),
+
   // Grocery wholesale accounts
   registerGrocery: (payload: { storeName: string; contactName: string; phone: string; address: string; password: string }) =>
     fetchJson<{ account: any; token: string }>(`${API_BASE}/grocery/register`, { method: 'POST', body: JSON.stringify(payload) }),
@@ -138,6 +145,7 @@ export const api = {
     paymentMethod: string;
     accountType?: 'individual' | 'grocery';
     groceryAccountToken?: string;
+    couponCode?: string;
     notes?: string;
   }) =>
     fetchJson<Order>(`${API_BASE}/orders`, {
