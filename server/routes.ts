@@ -403,13 +403,14 @@ router.delete('/admin/coupons/:id', authenticateAdmin, requireRoles(['OWNER', 'A
 // Create Order (Public client checkout)
 router.post('/orders', (req: Request, res: Response) => {
   try {
-    const { customer, items, paymentMethod, notes, accountType, groceryAccountToken } = req.body;
+    const { customer, items, paymentMethod, notes, accountType, groceryAccountToken, couponCode } = req.body;
     const result = db.createOrder({
       customer,
       items,
       paymentMethod: paymentMethod || 'WHATSAPP',
       accountType,
       groceryAccountToken,
+      couponCode,
       notes,
     });
 
