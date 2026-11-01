@@ -116,7 +116,11 @@ function verifyPassword(password: string, hash: string, salt: string): boolean {
 }
 
 export function generateDefaultData(): DatabaseSchema {
-  const ownerAuth = hashPassword('mazaq2026');
+  const initialAdminPassword = process.env.MAZAQ_INITIAL_ADMIN_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : 'mazaq2026');
+  if (!initialAdminPassword) {
+    throw new Error('اضبط MAZAQ_INITIAL_ADMIN_PASSWORD قبل إنشاء قاعدة بيانات إنتاجية جديدة.');
+  }
+  const ownerAuth = hashPassword(initialAdminPassword);
 
   return {
     settings: {
