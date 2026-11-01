@@ -892,6 +892,11 @@ class Database {
       return { success: false, error: 'السلة فارغة، يرجى إضافة منتجات للطلب' };
     }
 
+    const allowedPaymentMethods = ['CASH_ON_DELIVERY', 'MADA_CARD', 'APPLE_PAY', 'WHATSAPP'];
+    if (!allowedPaymentMethods.includes(input.paymentMethod)) {
+      return { success: false, error: 'طريقة الدفع غير مدعومة' };
+    }
+
     // Extract address text regardless of string or object format
     let addressDetails = '';
     let addressArea = '';
@@ -1003,7 +1008,8 @@ class Database {
       discountAmount: 0,
       grandTotal,
       paymentMethod: input.paymentMethod,
-      paymentStatus: (input.paymentMethod === 'CASH_ON_DELIVERY' || input.paymentMethod === 'WHATSAPP') ? 'PENDING' : 'PAID',
+      // No payment gateway is integrated yet: never mark a client-submitted card method as paid.
+      paymentStatus: 'PENDING',
       status: 'New',
       estimatedDeliveryMinutes: matchedArea?.estimatedMinutes || 25,
       timeline: [
