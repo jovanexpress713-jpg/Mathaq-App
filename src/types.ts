@@ -209,6 +209,8 @@ export interface ShopSettings {
   phone: string;
   whatsapp: string;
   address: string;
+  contactPhones?: string[];
+  contactAddresses?: string[];
   workingHours: string;
   currency: string;
   defaultDeliveryFee: number;
