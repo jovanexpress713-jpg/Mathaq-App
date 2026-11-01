@@ -491,6 +491,7 @@ export function generateDefaultData(): DatabaseSchema {
         createdBy: 'Owner',
       },
     ],
+    coupons: [],
     orders: [
       {
         id: 'ord-12345',
