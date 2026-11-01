@@ -26,6 +26,7 @@ import {
   DollarSign,
   Clock,
   CheckCircle2,
+  Store,
 } from 'lucide-react';
 import {
   Category,
@@ -39,6 +40,7 @@ import {
 } from '../types';
 import { api, removeAuthToken } from '../services/api';
 import { MazaqLogo } from './MazaqLogo';
+import { GroceryAccountsPanel } from './GroceryAccountsPanel';
 
 interface AdminDashboardProps {
   onClose: () => void;
@@ -48,6 +50,7 @@ interface AdminDashboardProps {
 type AdminTab =
   | 'stats'
   | 'products'
+  | 'groceries'
   | 'categories'
   | 'offers'
   | 'orders'
@@ -292,6 +295,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               { id: 'stats', label: 'نظرة عامة وإحصائيات', icon: TrendingUp },
               { id: 'orders', label: 'إدارة الطلبات المباشرة', icon: ClipboardList, badge: orders.length },
               { id: 'products', label: 'المنتجات وقائمة الأصناف', icon: Package, badge: products.length },
+              { id: 'groceries', label: 'حسابات البقالات', icon: Store },
               { id: 'categories', label: 'أقسام المتجر', icon: LayoutGrid, badge: categories.length },
               { id: 'offers', label: 'سلايدر العروض الترويجية', icon: Sparkles, badge: offers.length },
               { id: 'settings', label: 'إعدادات المتجر والتوصيل', icon: SettingsIcon },
@@ -368,6 +372,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <option value="stats">نظرة عامة</option>
                 <option value="orders">الطلبات</option>
                 <option value="products">المنتجات</option>
+                <option value="groceries">حسابات البقالات</option>
                 <option value="categories">الأقسام</option>
                 <option value="offers">العروض</option>
                 <option value="settings">الإعدادات</option>
@@ -379,6 +384,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {activeTab === 'stats' && 'لوحة التحكم والتحليلات'}
               {activeTab === 'orders' && 'سجل ومتابعة الطلبات المباشرة'}
               {activeTab === 'products' && 'إدارة قائمة المنتجات والأصناف'}
+              {activeTab === 'groceries' && 'مراجعة واعتماد حسابات البقالات'}
               {activeTab === 'categories' && 'إدارة أقسام وتصنيفات المتجر'}
               {activeTab === 'offers' && 'إدارة بنرات وعروض السلايدر الترويجي'}
               {activeTab === 'settings' && 'إعدادات المتجر ومناطق التوصيل'}
@@ -668,6 +674,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
           )}
+
+          {activeTab === 'groceries' && <GroceryAccountsPanel />}
 
           {/* 4. CATEGORIES MANAGEMENT */}
           {activeTab === 'categories' && (
