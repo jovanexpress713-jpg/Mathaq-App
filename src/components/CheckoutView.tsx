@@ -60,6 +60,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('WHATSAPP');
   const [orderNotes, setOrderNotes] = useState('');
+  const [couponCode, setCouponCode] = useState('');
   const [accountType, setAccountType] = useState<'individual' | 'grocery'>('individual');
   const [groceryMode, setGroceryMode] = useState<'register' | 'login'>('register');
   const [groceryForm, setGroceryForm] = useState({ storeName: '', contactName: '', phone: '', address: '', password: '' });
@@ -149,6 +150,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
         paymentMethod: 'WHATSAPP',
         accountType,
         groceryAccountToken: accountType === 'grocery' ? groceryToken : undefined,
+        couponCode: couponCode.trim() || undefined,
         notes: orderNotes,
       });
 
@@ -475,6 +477,13 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
       )}
 
       {/* STEP 3: Order Review */}
+      {currentStep === 3 && (
+        <div className="mb-4 rounded-2xl border border-[#3d2c1d] bg-[#18110c] p-4 space-y-2">
+          <label className="text-xs font-bold text-[#e5c378]">كود الخصم</label>
+          <input value={couponCode} onChange={e => setCouponCode(e.target.value.toUpperCase())} placeholder="أدخل كود الخصم إن وجد" dir="ltr" className="w-full rounded-xl border border-[#3d2c1d] bg-[#100b08] px-3 py-3 text-sm text-left tracking-wider" />
+          <p className="text-[10px] text-[#9b8977]">سيتم التحقق من صلاحية الكوبون وحساب الخصم تلقائياً عند تأكيد الطلب.</p>
+        </div>
+      )}
       {currentStep === 3 && (
         <div className="space-y-4">
           {accountType === 'grocery' && <div className="rounded-xl border border-[#8a642d] bg-[#251b14] p-3 text-[11px] leading-5 text-[#e7c994]">تم اعتماد حساب الجملة. سيحسب الخادم أسعار الجملة الفعلية عند تأكيد الطلب، ولن نعتمد أسعار الأفراد الظاهرة في السلة.</div>}
