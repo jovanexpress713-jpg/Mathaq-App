@@ -335,17 +335,63 @@ router.delete('/offers/:id', authenticateAdmin, requireRoles(['OWNER', 'ADMIN'])
 });
 
 // ==========================================
+ // GROCERY ACCOUNTS & WHOLESALE ACCESS
+// ==========================================
+
+router.post('/grocery/register', (req: Request, res: Response) => {
+  try {
+    const { storeName, contactName, phone, address, password } = req.body || {};
+    if (![storeName, contactName, phone, address, password].every((v) => typeof v === 'string' && v.trim())) {
+      return res.status(400).json({ success: false, error: 'يرجى إكمال اسم البقالة واسم المسؤول والهاتف والعنوان وكلمة المرور' });
+    }
+    if (password.length < 8) return res.status(400).json({ success: false, error: 'كلمة المرور يجب ألا تقل عن 8 أحرف' });
+    if (phone.replace(/\\D/g, '').length < 8) return res.status(400).json({ success: false, error: 'رقم الهاتف غير صحيح' });
+    const result = db.registerGroceryAccount({ storeName, contactName, phone, address, password });
+    if (!result.success) return res.status(409).json({ success: false, error: result.error });
+    res.status(201).json({ success: true, data: { account: result.account, token: result.token } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/grocery/login', (req: Request, res: Response) => {
+  try {
+    const { phone, password } = req.body || {};
+    if (!phone || !password) return res.status(400).json({ success: false, error: 'رقم الهاتف وكلمة المرور مطلوبان' });
+    const result = db.loginGroceryAccount(String(phone), String(password));
+    if (!result.success) return res.status(401).json({ success: false, error: result.error });
+    res.json({ success: true, data: { account: result.account, token: result.token } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/admin/grocery-accounts', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (_req: AuthenticatedRequest, res: Response) => {
+  res.json({ success: true, data: db.getGroceryAccounts() });
+});
+
+router.patch('/admin/grocery-accounts/:id/status', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+  const status = req.body?.status;
+  if (status !== 'APPROVED' && status !== 'REJECTED') return res.status(400).json({ success: false, error: 'الحالة غير صحيحة' });
+  const ok = db.setGroceryAccountStatus(req.params.id, status, req.user?.name || 'Admin');
+  if (!ok) return res.status(404).json({ success: false, error: 'حساب البقالة غير موجود' });
+  res.json({ success: true, message: status === 'APPROVED' ? 'تم اعتماد حساب البقالة' : 'تم رفض حساب البقالة' });
+});
+
+// ==========================================
 // 5. ORDERS (SERVER-AUTHORITATIVE)
 // ==========================================
 
 // Create Order (Public client checkout)
 router.post('/orders', (req: Request, res: Response) => {
   try {
-    const { customer, items, paymentMethod, notes } = req.body;
+    const { customer, items, paymentMethod, notes, accountType, groceryAccountToken } = req.body;
     const result = db.createOrder({
       customer,
       items,
       paymentMethod: paymentMethod || 'WHATSAPP',
+      accountType,
+      groceryAccountToken,
       notes,
     });
 
