@@ -345,7 +345,7 @@ router.post('/grocery/register', (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'يرجى إكمال اسم البقالة واسم المسؤول والهاتف والعنوان وكلمة المرور' });
     }
     if (password.length < 8) return res.status(400).json({ success: false, error: 'كلمة المرور يجب ألا تقل عن 8 أحرف' });
-    if (phone.replace(/\\D/g, '').length < 8) return res.status(400).json({ success: false, error: 'رقم الهاتف غير صحيح' });
+    if (phone.replace(/\D/g, '').length < 8) return res.status(400).json({ success: false, error: 'رقم الهاتف غير صحيح' });
     const result = db.registerGroceryAccount({ storeName, contactName, phone, address, password });
     if (!result.success) return res.status(409).json({ success: false, error: result.error });
     res.status(201).json({ success: true, data: { account: result.account, token: result.token } });
