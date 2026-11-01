@@ -1297,6 +1297,7 @@ class Database {
   resetCatalog(actor: string) {
     const fresh = generateDefaultData();
     // A catalog reset must never erase registered wholesale customers or their sessions.
+    fresh.coupons = this.data.coupons || [];
     fresh.groceryAccounts = this.data.groceryAccounts || [];
     fresh.grocerySessions = this.data.grocerySessions || [];
     this.data = fresh;
