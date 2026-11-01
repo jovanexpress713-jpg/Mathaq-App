@@ -122,11 +122,22 @@ export const api = {
       method: 'DELETE',
     }),
 
+  // Grocery wholesale accounts
+  registerGrocery: (payload: { storeName: string; contactName: string; phone: string; address: string; password: string }) =>
+    fetchJson<{ account: any; token: string }>(`${API_BASE}/grocery/register`, { method: 'POST', body: JSON.stringify(payload) }),
+  loginGrocery: (phone: string, password: string) =>
+    fetchJson<{ account: any; token: string }>(`${API_BASE}/grocery/login`, { method: 'POST', body: JSON.stringify({ phone, password }) }),
+  getGroceryAccounts: () => fetchJson<any[]>(`${API_BASE}/admin/grocery-accounts`),
+  setGroceryAccountStatus: (id: string, status: 'APPROVED' | 'REJECTED') =>
+    fetchJson<{ message: string }>(`${API_BASE}/admin/grocery-accounts/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+
   // Orders
   createOrder: (payload: {
     customer: any;
     items: any[];
     paymentMethod: string;
+    accountType?: 'individual' | 'grocery';
+    groceryAccountToken?: string;
     notes?: string;
   }) =>
     fetchJson<Order>(`${API_BASE}/orders`, {
