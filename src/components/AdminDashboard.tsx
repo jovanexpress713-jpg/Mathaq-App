@@ -1074,9 +1074,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[#857361] mb-1">السعر الأساسي (ريال) *</label>
+                  <label className="block text-[#857361] mb-1">سعر الأفراد (ريال) *</label>
                   <input
                     type="number"
                     value={editingProduct.price || 0}
@@ -1085,6 +1085,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     }
                     className="w-full px-3 py-2 rounded-xl bg-[#120d0a] border border-[#2d2118] text-xs"
                   />
+                </div>
+                <div>
+                  <label className="block text-[#857361] mb-1">سعر الجملة للبقالات (ريال)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editingProduct.wholesalePrice ?? ''}
+                    onChange={(e) =>
+                      setEditingProduct({
+                        ...editingProduct,
+                        wholesalePrice: e.target.value === '' ? undefined : Number(e.target.value),
+                      })
+                    }
+                    placeholder="اتركه فارغاً لإيقاف بيع الجملة"
+                    className="w-full px-3 py-2 rounded-xl bg-[#120d0a] border border-[#2d2118] text-xs"
+                  />
+                  <p className="text-[10px] text-[#857361] mt-1">لا يظهر هذا السعر للزوار أو الأفراد.</p>
                 </div>
                 <div>
                   <label className="block text-[#857361] mb-1">السعر القديم قبل الخصم</label>
