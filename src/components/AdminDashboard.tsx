@@ -627,7 +627,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="flex-1 min-w-0">
                       <h4 className="text-xs font-bold text-[#f5ebe1] truncate">{prod.name}</h4>
                       <div className="flex items-baseline gap-1 text-xs text-[#c69a59] font-bold mt-0.5">
-                        <span>{prod.price} ريال</span>
+                        <span>{prod.price} ريال للأفراد</span>
+                        {prod.wholesalePrice !== undefined && prod.wholesalePrice !== null && (
+                          <span className="text-[10px] text-emerald-400 mr-1">• {prod.wholesalePrice} ريال جملة</span>
+                        )}
                       </div>
                       <span className="text-[10px] text-[#857361]">
                         {categories.find((c) => c.id === prod.categoryId)?.name || 'عام'}
@@ -1096,7 +1099,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     onChange={(e) =>
                       setEditingProduct({
                         ...editingProduct,
-                        wholesalePrice: e.target.value === '' ? undefined : Number(e.target.value),
+                        wholesalePrice: e.target.value === '' ? null : Number(e.target.value),
                       })
                     }
                     placeholder="اتركه فارغاً لإيقاف بيع الجملة"
