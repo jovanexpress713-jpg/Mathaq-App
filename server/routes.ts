@@ -134,7 +134,7 @@ router.get('/products', (req: Request, res: Response) => {
       return res.json({ success: true, data: products });
     }
 
-    const products = db.getProducts(categoryId, search);
+    const products = db.getProducts(categoryId, search).map(({ wholesalePrice, ...product }) => product);
     res.json({ success: true, data: products });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -147,7 +147,8 @@ router.get('/products/:id', (req: Request, res: Response) => {
     if (!product) {
       return res.status(404).json({ success: false, error: 'المنتج غير موجود' });
     }
-    res.json({ success: true, data: product });
+    const { wholesalePrice, ...publicProduct } = product;
+    res.json({ success: true, data: publicProduct });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -155,9 +156,12 @@ router.get('/products/:id', (req: Request, res: Response) => {
 
 router.post('/products', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { name, description, price, oldPrice, categoryId, image, gallery, options, isFeatured, isAvailable, sortOrder } = req.body;
+    const { name, description, price, wholesalePrice, oldPrice, categoryId, image, gallery, options, isFeatured, isAvailable, sortOrder } = req.body;
     if (!name || price === undefined || !categoryId || !image) {
       return res.status(400).json({ success: false, error: 'الاسم، السعر، القسم، والصورة حقول مطلوبة' });
+    }
+    if (wholesalePrice !== undefined && wholesalePrice !== null && wholesalePrice !== '' && (!Number.isFinite(Number(wholesalePrice)) || Number(wholesalePrice) < 0)) {
+      return res.status(400).json({ success: false, error: 'سعر الجملة يجب أن يكون رقماً صحيحاً غير سالب' });
     }
 
     const actor = req.user?.name || 'Owner';
@@ -166,6 +170,7 @@ router.post('/products', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (r
         name,
         description: description || '',
         price: Number(price),
+        wholesalePrice: wholesalePrice === undefined || wholesalePrice === null || wholesalePrice === '' ? undefined : Number(wholesalePrice),
         oldPrice: oldPrice ? Number(oldPrice) : undefined,
         rating: 5.0,
         reviewsCount: 1,
@@ -190,6 +195,11 @@ router.post('/products', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (r
 router.put('/products/:id', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const wholesalePrice = req.body?.wholesalePrice;
+    if (wholesalePrice !== undefined && wholesalePrice !== null && wholesalePrice !== '' && (!Number.isFinite(Number(wholesalePrice)) || Number(wholesalePrice) < 0)) {
+      return res.status(400).json({ success: false, error: 'سعر الجملة يجب أن يكون رقماً صحيحاً غير سالب' });
+    }
+    if (wholesalePrice === '') req.body.wholesalePrice = undefined;
     const actor = req.user?.name || 'Owner';
     const updated = db.updateProduct(id, req.body, actor);
     if (!updated) {
