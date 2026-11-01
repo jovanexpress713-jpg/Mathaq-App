@@ -347,7 +347,7 @@ router.post('/grocery/register', (req: Request, res: Response) => {
     if (password.length < 8) return res.status(400).json({ success: false, error: 'كلمة المرور يجب ألا تقل عن 8 أحرف' });
     if (phone.replace(/\D/g, '').length < 8) return res.status(400).json({ success: false, error: 'رقم الهاتف غير صحيح' });
     const result = db.registerGroceryAccount({ storeName, contactName, phone, address, password });
-    if (!result.success) return res.status(409).json({ success: false, error: result.error });
+    if (result.success === false) return res.status(409).json({ success: false, error: result.error });
     res.status(201).json({ success: true, data: { account: result.account, token: result.token } });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -359,7 +359,7 @@ router.post('/grocery/login', (req: Request, res: Response) => {
     const { phone, password } = req.body || {};
     if (!phone || !password) return res.status(400).json({ success: false, error: 'رقم الهاتف وكلمة المرور مطلوبان' });
     const result = db.loginGroceryAccount(String(phone), String(password));
-    if (!result.success) return res.status(401).json({ success: false, error: result.error });
+    if (result.success === false) return res.status(401).json({ success: false, error: result.error });
     res.json({ success: true, data: { account: result.account, token: result.token } });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
