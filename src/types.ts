@@ -38,6 +38,14 @@ export interface Offer {
   createdBy?: string;
 }
 
+export interface DiscountCoupon {
+  id: string; code: string; title: string; description?: string;
+  discountType: 'PERCENT' | 'FIXED'; discountValue: number; minOrderAmount: number;
+  maxDiscountAmount?: number; firstOrderOnly: boolean; usageLimit?: number;
+  usageCount: number; startDate: string; endDate: string; isActive: boolean;
+  createdAt: string; updatedAt: string;
+}
+
 export interface Category {
   id: string;
   name: string;
@@ -172,6 +180,7 @@ export interface Order {
   itemsTotal: number;
   deliveryFee: number;
   discountAmount?: number;
+  couponCode?: string;
   grandTotal: number;
   paymentMethod: PaymentMethod;
   paymentStatus?: 'PENDING' | 'PAID';
