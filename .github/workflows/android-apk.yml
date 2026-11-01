@@ -1,0 +1,64 @@
+name: Build MAZAQ Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [deploy/production-persistence]
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate application
+        env:
+          VITE_API_BASE_URL: ${{ vars.MAZAQ_API_BASE_URL }}
+        run: |
+          if [ -z "$VITE_API_BASE_URL" ]; then
+            echo "::warning::MAZAQ_API_BASE_URL is not configured. The APK can be built, but API-backed orders and administration will not work in the native app."
+          else
+            case "$VITE_API_BASE_URL" in
+              https://*) echo "Public HTTPS API endpoint configured." ;;
+              *) echo "::error::MAZAQ_API_BASE_URL must use HTTPS."; exit 1 ;;
+            esac
+          fi
+          npm run lint
+          npm test
+      - name: Build web app
+        env:
+          VITE_API_BASE_URL: ${{ vars.MAZAQ_API_BASE_URL }}
+        run: npm run build
+      - name: Generate Android project
+        run: npx cap add android
+      - name: Sync Android assets
+        run: npx cap sync android
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+      - name: Verify APK
+        run: test -s android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MAZAQ-Android-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

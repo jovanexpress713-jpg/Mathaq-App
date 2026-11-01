@@ -14,7 +14,8 @@ import {
   DiscountCoupon,
 } from '../types';
 
-const API_BASE = '/api';
+const API_ORIGIN = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
+const API_BASE = `${API_ORIGIN}/api`;
 
 export function getAuthToken(): string | null {
   return localStorage.getItem('mazaq_admin_token');
