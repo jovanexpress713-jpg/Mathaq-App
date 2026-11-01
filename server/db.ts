@@ -19,6 +19,64 @@ import {
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'mazaq_db.json');
 
+type SubmittedOption = { optionId?: string; choiceId?: string; optionName?: string; choiceName?: string; id?: string; name?: string };
+type ResolvedOption = { optionId: string; optionName: string; choiceId: string; choiceName: string; priceModifier: number };
+
+export function resolveProductSelections(
+  options: Product['options'],
+  submitted: unknown
+): { success: true; selections: ResolvedOption[] } | { success: false; error: string } {
+  const raw: Array<{ groupKey?: string; value: SubmittedOption }> = [];
+  if (Array.isArray(submitted)) {
+    for (const item of submitted) {
+      if (!item || typeof item !== 'object') return { success: false, error: 'خيارات المنتج غير صحيحة' };
+      raw.push({ value: item as SubmittedOption });
+    }
+  } else if (submitted && typeof submitted === 'object') {
+    for (const [groupKey, value] of Object.entries(submitted as Record<string, unknown>)) {
+      if (!value || typeof value !== 'object') return { success: false, error: 'خيارات المنتج غير صحيحة' };
+      raw.push({ groupKey, value: value as SubmittedOption });
+    }
+  } else if (submitted !== undefined && submitted !== null) {
+    return { success: false, error: 'خيارات المنتج غير صحيحة' };
+  }
+
+  const selections: ResolvedOption[] = [];
+  for (const entry of raw) {
+    const group = options.find((candidate) =>
+      candidate.id === entry.value.optionId ||
+      candidate.name === entry.value.optionName ||
+      candidate.id === entry.groupKey ||
+      candidate.name === entry.groupKey
+    );
+    if (!group) return { success: false, error: 'أحد خيارات المنتج لم يعد متاحاً، حدّث الصفحة وحاول مجدداً' };
+    const choice = group.choices.find((candidate) =>
+      candidate.id === entry.value.choiceId ||
+      candidate.id === entry.value.id ||
+      candidate.name === entry.value.choiceName ||
+      candidate.name === entry.value.name
+    );
+    if (!choice) return { success: false, error: 'أحد اختيارات المنتج لم يعد متاحاً، حدّث الصفحة وحاول مجدداً' };
+    if (selections.some((selection) => selection.optionId === (group.id || group.name))) {
+      return { success: false, error: 'لا يمكن اختيار أكثر من قيمة لنفس الخيار' };
+    }
+    selections.push({
+      optionId: group.id || group.name,
+      optionName: group.name,
+      choiceId: choice.id || choice.name,
+      choiceName: choice.name,
+      priceModifier: choice.priceModifier,
+    });
+  }
+
+  for (const group of options) {
+    if (group.required && !selections.some((selection) => selection.optionId === (group.id || group.name))) {
+      return { success: false, error: `يرجى اختيار ${group.name}` };
+    }
+  }
+  return { success: true, selections };
+}
+
 export interface GroceryAccount {
   id: string;
   storeName: string;
@@ -880,7 +938,7 @@ class Database {
     };
     items: Array<{
       productId: string;
-      selectedOptions: Array<{ optionId: string; choiceId: string }>;
+      selectedOptions?: Array<SubmittedOption> | Record<string, SubmittedOption>;
       quantity: number;
     }>;
     paymentMethod: 'CASH_ON_DELIVERY' | 'MADA_CARD' | 'APPLE_PAY' | 'WHATSAPP';
@@ -934,26 +992,15 @@ class Database {
       const unitBasePrice = accountType === 'grocery' ? product.wholesalePrice : product.price;
       if (accountType === 'grocery' && (unitBasePrice === undefined || unitBasePrice === null || !Number.isFinite(unitBasePrice))) return { success: false, error: `المنتج ${product.name} غير متاح بسعر الجملة حالياً` };
       let itemPrice = unitBasePrice as number;
-      const chosenOptions = [];
+      const resolved = resolveProductSelections(product.options || [], reqItem.selectedOptions);
+      if (!resolved.success) return { success: false, error: resolved.error };
+      const chosenOptions = resolved.selections;
+      for (const selection of chosenOptions) itemPrice += selection.priceModifier;
 
-      for (const sel of reqItem.selectedOptions || []) {
-        const optDef = product.options.find((o) => o.id === sel.optionId);
-        if (optDef) {
-          const choiceDef = optDef.choices.find((c) => c.id === sel.choiceId);
-          if (choiceDef) {
-            itemPrice += choiceDef.priceModifier;
-            chosenOptions.push({
-              optionId: optDef.id,
-              optionName: optDef.name,
-              choiceId: choiceDef.id,
-              choiceName: choiceDef.name,
-              priceModifier: choiceDef.priceModifier,
-            });
-          }
-        }
+      const qty = Number(reqItem.quantity);
+      if (!Number.isSafeInteger(qty) || qty < 1 || qty > 999) {
+        return { success: false, error: 'كمية المنتج غير صحيحة (الحد الأقصى 999)' };
       }
-
-      const qty = Math.max(1, Math.floor(reqItem.quantity || 1));
       const totalItem = itemPrice * qty;
       calculatedItemsTotal += totalItem;
 
