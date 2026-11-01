@@ -14,6 +14,7 @@ import {
   ShopSettings,
   AdminUser,
   AuditLog,
+  DiscountCoupon,
 } from '../src/types';
 
 const DATA_DIR = path.resolve(process.env.MAZAQ_DATA_DIR || path.join(process.cwd(), 'data'));
@@ -96,6 +97,7 @@ export interface DatabaseSchema {
   categories: Category[];
   products: Product[];
   offers: Offer[];
+  coupons: DiscountCoupon[];
   orders: Order[];
   adminUsers: (AdminUser & { passwordHash: string; salt: string })[];
   auditLogs: AuditLog[];
@@ -551,7 +553,8 @@ export function generateDefaultData(): DatabaseSchema {
         ],
         itemsTotal: 57,
         deliveryFee: 5,
-        discountAmount: 0,
+        discountAmount,
+      couponCode: appliedCoupon?.code,
         grandTotal: 62,
         paymentMethod: 'MADA_CARD',
         paymentStatus: 'PAID',
@@ -622,6 +625,7 @@ class Database {
     this.ensureDataDir();
     this.data = this.loadData();
     // Backward-compatible migration for existing JSON database files.
+    this.data.coupons ||= [];
     this.data.groceryAccounts ||= [];
     this.data.grocerySessions ||= [];
   }
@@ -947,6 +951,25 @@ class Database {
    * Server-authoritative Order Creation
    * Re-evaluates product existence, pricing, options, delivery fees, and minimum order threshold!
    */
+  getCoupons(): DiscountCoupon[] { return [...this.data.coupons].sort((a,b) => a.code.localeCompare(b.code)); }
+  createCoupon(input: Omit<DiscountCoupon, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>, actor: string): DiscountCoupon {
+    const code = input.code.trim().toUpperCase();
+    if (!/^[A-Z0-9_-]{3,24}$/.test(code)) throw new Error('رمز الكوبون يجب أن يكون 3 إلى 24 حرفاً أو رقماً');
+    if (this.data.coupons.some(c => c.code === code)) throw new Error('رمز الكوبون مستخدم بالفعل');
+    const now = new Date().toISOString();
+    const coupon: DiscountCoupon = { ...input, code, id: 'coupon-' + crypto.randomUUID(), usageCount: 0, createdAt: now, updatedAt: now };
+    this.data.coupons.push(coupon); this.addAuditLog('COUPON_CREATE', 'إنشاء كوبون ' + code, actor); this.persist(); return coupon;
+  }
+  updateCoupon(id: string, updates: Partial<DiscountCoupon>, actor: string): DiscountCoupon | null {
+    const index = this.data.coupons.findIndex(c => c.id === id); if (index < 0) return null;
+    const nextCode = updates.code === undefined ? this.data.coupons[index].code : updates.code.trim().toUpperCase();
+    if (!/^[A-Z0-9_-]{3,24}$/.test(nextCode)) throw new Error('رمز الكوبون غير صالح');
+    if (this.data.coupons.some(c => c.id !== id && c.code === nextCode)) throw new Error('رمز الكوبون مستخدم بالفعل');
+    this.data.coupons[index] = { ...this.data.coupons[index], ...updates, code: nextCode, updatedAt: new Date().toISOString() };
+    this.addAuditLog('COUPON_UPDATE', 'تعديل كوبون ' + nextCode, actor); this.persist(); return this.data.coupons[index];
+  }
+  deleteCoupon(id: string, actor: string): boolean { const coupon = this.data.coupons.find(c => c.id === id); if (!coupon) return false; this.data.coupons = this.data.coupons.filter(c => c.id !== id); this.addAuditLog('COUPON_DELETE', 'حذف كوبون ' + coupon.code, actor); this.persist(); return true; }
+
   createOrder(input: {
     customer: {
       name: string;
@@ -970,6 +993,7 @@ class Database {
     paymentMethod: 'CASH_ON_DELIVERY' | 'MADA_CARD' | 'APPLE_PAY' | 'WHATSAPP';
     accountType?: 'individual' | 'grocery';
     groceryAccountToken?: string;
+    couponCode?: string;
     notes?: string;
   }): { success: true; order: Order } | { success: false; error: string } {
     if (!input.items || input.items.length === 0) {
@@ -1064,7 +1088,24 @@ class Database {
       deliveryFee = 0;
     }
 
-    const grandTotal = calculatedItemsTotal + deliveryFee;
+    let discountAmount = 0;
+    let appliedCoupon: DiscountCoupon | undefined;
+    const couponCode = String(input.couponCode || '').trim().toUpperCase();
+    if (couponCode) {
+      appliedCoupon = this.data.coupons.find(c => c.code === couponCode && c.isActive);
+      if (!appliedCoupon) return { success: false, error: 'كود الخصم غير صحيح أو غير نشط' };
+      const now = new Date().toISOString();
+      if (appliedCoupon.startDate && appliedCoupon.startDate > now) return { success: false, error: 'هذا الكوبون لم يبدأ بعد' };
+      if (appliedCoupon.endDate && appliedCoupon.endDate < now) return { success: false, error: 'انتهت صلاحية هذا الكوبون' };
+      if (appliedCoupon.usageLimit && appliedCoupon.usageCount >= appliedCoupon.usageLimit) return { success: false, error: 'وصل الكوبون إلى حد الاستخدام' };
+      if (calculatedItemsTotal < appliedCoupon.minOrderAmount) return { success: false, error: 'الحد الأدنى لاستخدام الكوبون هو ' + appliedCoupon.minOrderAmount + ' ' + settings.currency };
+      if (appliedCoupon.firstOrderOnly && this.data.orders.some(o => o.customer.phone.replace(/\D/g, '') === input.customer.phone.replace(/\D/g, '') && o.status !== 'Cancelled')) return { success: false, error: 'هذا الكوبون مخصص لأول عملية شراء فقط' };
+      discountAmount = appliedCoupon.discountType === 'PERCENT' ? calculatedItemsTotal * appliedCoupon.discountValue / 100 : appliedCoupon.discountValue;
+      if (appliedCoupon.maxDiscountAmount && appliedCoupon.maxDiscountAmount > 0) discountAmount = Math.min(discountAmount, appliedCoupon.maxDiscountAmount);
+      discountAmount = Math.max(0, Math.min(calculatedItemsTotal, Math.round(discountAmount * 100) / 100));
+      appliedCoupon.usageCount += 1;
+    }
+    const grandTotal = Math.max(0, calculatedItemsTotal + deliveryFee - discountAmount);
     const orderNum = `#${Math.floor(10000 + Math.random() * 90000)}`;
     const nowIso = new Date().toISOString();
 
