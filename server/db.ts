@@ -19,6 +19,19 @@ import {
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'mazaq_db.json');
 
+export interface GroceryAccount {
+  id: string;
+  storeName: string;
+  contactName: string;
+  phone: string;
+  address: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  passwordHash: string;
+  salt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DatabaseSchema {
   settings: ShopSettings;
   categories: Category[];
@@ -28,6 +41,8 @@ export interface DatabaseSchema {
   adminUsers: (AdminUser & { passwordHash: string; salt: string })[];
   auditLogs: AuditLog[];
   sessions: { token: string; userId: string; expiresAt: number }[];
+  groceryAccounts: GroceryAccount[];
+  grocerySessions: { token: string; accountId: string; expiresAt: number }[];
 }
 
 function hashPassword(password: string, salt?: string): { hash: string; salt: string } {
@@ -532,6 +547,8 @@ export function generateDefaultData(): DatabaseSchema {
       },
     ],
     sessions: [],
+    groceryAccounts: [],
+    grocerySessions: [],
   };
 }
 
@@ -541,6 +558,9 @@ class Database {
   constructor() {
     this.ensureDataDir();
     this.data = this.loadData();
+    // Backward-compatible migration for existing JSON database files.
+    this.data.groceryAccounts ||= [];
+    this.data.grocerySessions ||= [];
   }
 
   private ensureDataDir() {
@@ -775,6 +795,56 @@ class Database {
     return true;
   }
 
+  // Grocery wholesale accounts
+  registerGroceryAccount(input: { storeName: string; contactName: string; phone: string; address: string; password: string }): { success: true; account: Omit<GroceryAccount, 'passwordHash' | 'salt'>; token: string } | { success: false; error: string } {
+    const phone = input.phone.replace(/[^0-9+]/g, '');
+    if (this.data.groceryAccounts.some((a) => a.phone.replace(/\D/g, '') === phone.replace(/\D/g, ''))) {
+      return { success: false, error: 'يوجد حساب بقالة مسجل بهذا الرقم بالفعل. سجّل الدخول أو تواصل مع الإدارة.' };
+    }
+    const auth = hashPassword(input.password);
+    const now = new Date().toISOString();
+    const account: GroceryAccount = { id: `grocery-${crypto.randomUUID()}`, storeName: input.storeName.trim(), contactName: input.contactName.trim(), phone, address: input.address.trim(), status: 'PENDING', passwordHash: auth.hash, salt: auth.salt, createdAt: now, updatedAt: now };
+    this.data.groceryAccounts.push(account);
+    const token = crypto.randomBytes(32).toString('hex');
+    this.data.grocerySessions.push({ token, accountId: account.id, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
+    this.addAuditLog('GROCERY_REGISTER', `تسجيل بقالة جديدة: ${account.storeName}`, 'عميل');
+    this.persist();
+    const { passwordHash, salt, ...safeAccount } = account;
+    return { success: true, account: safeAccount, token };
+  }
+
+  loginGroceryAccount(phone: string, password: string): { success: true; account: Omit<GroceryAccount, 'passwordHash' | 'salt'>; token: string } | { success: false; error: string } {
+    const normalized = phone.replace(/\D/g, '');
+    const account = this.data.groceryAccounts.find((a) => a.phone.replace(/\D/g, '') === normalized);
+    if (!account || !verifyPassword(password, account.passwordHash, account.salt)) return { success: false, error: 'رقم الهاتف أو كلمة المرور غير صحيحة' };
+    const token = crypto.randomBytes(32).toString('hex');
+    this.data.grocerySessions = this.data.grocerySessions.filter((s) => s.accountId !== account.id || s.expiresAt > Date.now());
+    this.data.grocerySessions.push({ token, accountId: account.id, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
+    this.persist();
+    const { passwordHash, salt, ...safeAccount } = account;
+    return { success: true, account: safeAccount, token };
+  }
+
+  getGroceryAccountByToken(token?: string): GroceryAccount | undefined {
+    if (!token) return undefined;
+    const session = this.data.grocerySessions.find((s) => s.token === token && s.expiresAt > Date.now());
+    return session ? this.data.groceryAccounts.find((a) => a.id === session.accountId) : undefined;
+  }
+
+  getGroceryAccounts(): Omit<GroceryAccount, 'passwordHash' | 'salt'>[] {
+    return this.data.groceryAccounts.map(({ passwordHash, salt, ...account }) => account).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  setGroceryAccountStatus(id: string, status: 'APPROVED' | 'REJECTED', actor: string): boolean {
+    const account = this.data.groceryAccounts.find((a) => a.id === id);
+    if (!account) return false;
+    account.status = status;
+    account.updatedAt = new Date().toISOString();
+    this.addAuditLog('GROCERY_STATUS', `تم ${status === 'APPROVED' ? 'اعتماد' : 'رفض'} حساب البقالة: ${account.storeName}`, actor);
+    this.persist();
+    return true;
+  }
+
   // Orders
   getOrders(customerPhone?: string): Order[] {
     return this.data.orders
@@ -814,6 +884,8 @@ class Database {
       quantity: number;
     }>;
     paymentMethod: 'CASH_ON_DELIVERY' | 'MADA_CARD' | 'APPLE_PAY' | 'WHATSAPP';
+    accountType?: 'individual' | 'grocery';
+    groceryAccountToken?: string;
     notes?: string;
   }): { success: true; order: Order } | { success: false; error: string } {
     if (!input.items || input.items.length === 0) {
@@ -839,6 +911,12 @@ class Database {
       return { success: false, error: 'بيانات العميل والعنوان مطلوبة بالكامل' };
     }
 
+    const accountType = input.accountType === 'grocery' ? 'grocery' : 'individual';
+    const groceryAccount = accountType === 'grocery' ? this.getGroceryAccountByToken(input.groceryAccountToken) : undefined;
+    if (accountType === 'grocery' && !groceryAccount) return { success: false, error: 'سجّل الدخول بحساب البقالة أولاً لإكمال الطلب' };
+    if (accountType === 'grocery' && groceryAccount?.status !== 'APPROVED') return { success: false, error: 'حساب البقالة بانتظار موافقة الإدارة، ويمكنك الطلب بسعر الأفراد حالياً' };
+    if (accountType === 'grocery' && groceryAccount?.phone.replace(/\\D/g, '') !== input.customer.phone.replace(/\\D/g, '')) return { success: false, error: 'رقم هاتف الطلب يجب أن يطابق رقم حساب البقالة' };
+
     let calculatedItemsTotal = 0;
     const validatedSnapshots = [];
 
@@ -848,7 +926,9 @@ class Database {
         return { success: false, error: `المنتج غير متوفر حالياً` };
       }
 
-      let itemPrice = product.price;
+      const unitBasePrice = accountType === 'grocery' ? product.wholesalePrice : product.price;
+      if (accountType === 'grocery' && (unitBasePrice === undefined || unitBasePrice === null || !Number.isFinite(unitBasePrice))) return { success: false, error: `المنتج ${product.name} غير متاح بسعر الجملة حالياً` };
+      let itemPrice = unitBasePrice as number;
       const chosenOptions = [];
 
       for (const sel of reqItem.selectedOptions || []) {
@@ -876,7 +956,8 @@ class Database {
         productId: product.id,
         productName: product.name,
         productImage: product.image,
-        unitBasePrice: product.price,
+        unitBasePrice: unitBasePrice as number,
+        unitPrice: itemPrice,
         selectedOptions: chosenOptions,
         calculatedItemPrice: itemPrice,
         quantity: qty,
@@ -913,6 +994,9 @@ class Database {
       id: `ord-${Date.now()}`,
       orderNumber: orderNum,
       customer: input.customer,
+      accountType,
+      groceryAccountId: groceryAccount?.id,
+      groceryStoreName: groceryAccount?.storeName,
       items: validatedSnapshots,
       itemsTotal: calculatedItemsTotal,
       deliveryFee,
