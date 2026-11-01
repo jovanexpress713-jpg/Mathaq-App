@@ -915,7 +915,7 @@ class Database {
     const groceryAccount = accountType === 'grocery' ? this.getGroceryAccountByToken(input.groceryAccountToken) : undefined;
     if (accountType === 'grocery' && !groceryAccount) return { success: false, error: 'سجّل الدخول بحساب البقالة أولاً لإكمال الطلب' };
     if (accountType === 'grocery' && groceryAccount?.status !== 'APPROVED') return { success: false, error: 'حساب البقالة بانتظار موافقة الإدارة، ويمكنك الطلب بسعر الأفراد حالياً' };
-    if (accountType === 'grocery' && groceryAccount?.phone.replace(/\\D/g, '') !== input.customer.phone.replace(/\\D/g, '')) return { success: false, error: 'رقم هاتف الطلب يجب أن يطابق رقم حساب البقالة' };
+    if (accountType === 'grocery' && groceryAccount?.phone.replace(/\D/g, '') !== input.customer.phone.replace(/\D/g, '')) return { success: false, error: 'رقم هاتف الطلب يجب أن يطابق رقم حساب البقالة' };
 
     let calculatedItemsTotal = 0;
     const validatedSnapshots = [];
