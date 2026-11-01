@@ -12,7 +12,6 @@ import {
   Phone,
   Info,
   Clock,
-  ShieldCheck,
   ChevronLeft,
   Share2,
   Heart,
@@ -27,7 +26,6 @@ interface AccountViewProps {
   ordersCount: number;
   onGoHome: () => void;
   onGoOrders: () => void;
-  onOpenAdmin: () => void;
 }
 
 export const AccountView: React.FC<AccountViewProps> = ({
@@ -35,7 +33,6 @@ export const AccountView: React.FC<AccountViewProps> = ({
   ordersCount,
   onGoHome,
   onGoOrders,
-  onOpenAdmin,
 }) => {
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
@@ -201,15 +198,7 @@ export const AccountView: React.FC<AccountViewProps> = ({
           <ChevronLeft className="w-4 h-4 text-[#857361]" />
         </a>
 
-        {/* 7. Admin Portal Gateway */}
-        <button
-          onClick={onOpenAdmin}
-          className="w-full flex items-center justify-between p-3.5 bg-gradient-to-l from-[#251b14] to-[#18110c] border border-[#523a23] hover:border-[#c69a59] rounded-2xl transition-all mt-4"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#c69a59] flex items-center justify-center text-[#0c0907] font-bold shadow-[0_0_10px_#c69a59]">
-              <ShieldCheck className="w-4 h-4" />
-            </div>
+      </div>
             <div>
               <span className="text-xs font-bold text-[#c69a59] block">
                 لوحة تحكم الإدارة (Owner Portal)
