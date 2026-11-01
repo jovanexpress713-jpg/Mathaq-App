@@ -1176,6 +1176,9 @@ class Database {
   // Reset to seed
   resetCatalog(actor: string) {
     const fresh = generateDefaultData();
+    // A catalog reset must never erase registered wholesale customers or their sessions.
+    fresh.groceryAccounts = this.data.groceryAccounts || [];
+    fresh.grocerySessions = this.data.grocerySessions || [];
     this.data = fresh;
     this.addAuditLog('CATALOG_RESET', 'تمت استعادة كتالوج البيانات الافتراضي المعتمد', actor);
     this.persist();
