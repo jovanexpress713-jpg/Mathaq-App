@@ -104,6 +104,7 @@ export interface DatabaseSchema {
   sessions: { token: string; userId: string; expiresAt: number }[];
   groceryAccounts: GroceryAccount[];
   grocerySessions: { token: string; accountId: string; expiresAt: number }[];
+  notifications: { id: string; title: string; body: string; type: 'ORDER_NEW' | 'ORDER_STATUS' | 'GROCERY_PENDING' | 'GROCERY_STATUS'; referenceId?: string; isRead: boolean; createdAt: string }[];
 }
 
 function hashPassword(password: string, salt?: string): { hash: string; salt: string } {
@@ -628,6 +629,7 @@ class Database {
     this.data.coupons ||= [];
     this.data.groceryAccounts ||= [];
     this.data.grocerySessions ||= [];
+    this.data.notifications ||= [];
   }
 
   private ensureDataDir() {
@@ -934,6 +936,33 @@ class Database {
   }
 
   // Orders
+  getNotifications(unreadOnly = false) {
+    const items = this.data.notifications || [];
+    return items.filter((item) => !unreadOnly || !item.isRead).slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  addNotification(input: { title: string; body: string; type: 'ORDER_NEW' | 'ORDER_STATUS' | 'GROCERY_PENDING' | 'GROCERY_STATUS'; referenceId?: string }) {
+    const notification = { ...input, id: 'ntf-' + crypto.randomUUID(), isRead: false, createdAt: new Date().toISOString() };
+    this.data.notifications ||= [];
+    this.data.notifications.unshift(notification);
+    this.data.notifications = this.data.notifications.slice(0, 300);
+    this.persist();
+    return notification;
+  }
+
+  markNotificationRead(id: string) {
+    const item = this.data.notifications.find((entry) => entry.id === id);
+    if (!item) return false;
+    item.isRead = true;
+    this.persist();
+    return true;
+  }
+
+  markAllNotificationsRead() {
+    this.data.notifications.forEach((item) => { item.isRead = true; });
+    this.persist();
+  }
+
   getOrders(customerPhone?: string): Order[] {
     return this.data.orders
       .filter((o) => {
@@ -1159,6 +1188,7 @@ class Database {
     };
 
     this.data.orders.unshift(newOrder);
+    this.addNotification({ title: 'طلب جديد ' + orderNum, body: input.customer.name + ' — ' + grandTotal + ' ' + settings.currency, type: 'ORDER_NEW', referenceId: newOrder.id });
     this.addAuditLog('ORDER_CREATE', `تم إنشاء طلب جديد برقم ${orderNum} بقيمة ${grandTotal} ${settings.currency}`, input.customer.name);
     this.persist();
     return { success: true, order: newOrder };
@@ -1169,6 +1199,7 @@ class Database {
     if (!order) return null;
 
     order.status = newStatus;
+    this.addNotification({ title: 'تحديث حالة الطلب ' + order.orderNumber, body: 'الحالة الجديدة: ' + newStatus, type: 'ORDER_STATUS', referenceId: order.id });
     order.updatedAt = new Date().toISOString();
 
     // Update timeline steps
@@ -1299,6 +1330,7 @@ class Database {
     const fresh = generateDefaultData();
     // A catalog reset must never erase registered wholesale customers or their sessions.
     fresh.coupons = this.data.coupons || [];
+    fresh.notifications = this.data.notifications || [];
     fresh.groceryAccounts = this.data.groceryAccounts || [];
     fresh.grocerySessions = this.data.grocerySessions || [];
     this.data = fresh;
