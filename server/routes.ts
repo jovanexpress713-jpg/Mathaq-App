@@ -378,6 +378,24 @@ router.patch('/admin/grocery-accounts/:id/status', authenticateAdmin, requireRol
   res.json({ success: true, message: status === 'APPROVED' ? 'تم اعتماد حساب البقالة' : 'تم رفض حساب البقالة' });
 });
 
+// MARKETING COUPONS (ADMIN ONLY)
+router.get('/admin/coupons', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (_req: AuthenticatedRequest, res: Response) => { res.json({ success: true, data: db.getCoupons() }); });
+router.post('/admin/coupons', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+  try { const b = req.body || {};
+    if (!b.code || !b.title || !['PERCENT', 'FIXED'].includes(b.discountType) || !Number.isFinite(Number(b.discountValue)) || Number(b.discountValue) <= 0) return res.status(400).json({ success: false, error: 'أكمل بيانات الكوبون وقيمة الخصم بشكل صحيح' });
+    if (b.discountType === 'PERCENT' && Number(b.discountValue) > 100) return res.status(400).json({ success: false, error: 'نسبة الخصم لا تتجاوز 100%' });
+    const data = db.createCoupon({ code: String(b.code), title: String(b.title), description: String(b.description || ''), discountType: b.discountType, discountValue: Number(b.discountValue), minOrderAmount: Math.max(0, Number(b.minOrderAmount) || 0), maxDiscountAmount: b.maxDiscountAmount ? Number(b.maxDiscountAmount) : undefined, firstOrderOnly: Boolean(b.firstOrderOnly), usageLimit: b.usageLimit ? Number(b.usageLimit) : undefined, startDate: b.startDate || new Date().toISOString(), endDate: b.endDate || new Date(Date.now() + 30*86400000).toISOString(), isActive: b.isActive !== false }, req.user?.name || 'Admin');
+    res.status(201).json({ success: true, data });
+  } catch (err: any) { res.status(400).json({ success: false, error: err.message }); }
+});
+router.put('/admin/coupons/:id', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+  try { const data = db.updateCoupon(req.params.id, req.body, req.user?.name || 'Admin'); if (!data) return res.status(404).json({ success: false, error: 'الكوبون غير موجود' }); res.json({ success: true, data }); }
+  catch (err: any) { res.status(400).json({ success: false, error: err.message }); }
+});
+router.delete('/admin/coupons/:id', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+  const ok = db.deleteCoupon(req.params.id, req.user?.name || 'Admin'); if (!ok) return res.status(404).json({ success: false, error: 'الكوبون غير موجود' }); res.json({ success: true, message: 'تم حذف الكوبون' });
+});
+
 // ==========================================
 // 5. ORDERS (SERVER-AUTHORITATIVE)
 // ==========================================
