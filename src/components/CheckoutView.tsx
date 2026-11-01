@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { CartItem, CustomerInfo, DeliveryZone, Order, PaymentMethod, ShopSettings } from '../types';
 import { api } from '../services/api';
+import { normalizePhone } from '../grocery';
 
 interface CheckoutViewProps {
   cart: CartItem[];
@@ -106,7 +107,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
       setErrorMessage('للطلب بسعر الجملة يجب تسجيل الدخول بحساب بقالة معتمد. يمكنك اختيار طلب أفراد بدلاً من ذلك.');
       return false;
     }
-    if (accountType === 'grocery' && groceryForm.phone.replace(/\\D/g, '') !== customer.phone.replace(/\\D/g, '')) {
+    if (accountType === 'grocery' && normalizePhone(groceryForm.phone) !== normalizePhone(customer.phone)) {
       setErrorMessage('رقم هاتف المستلم يجب أن يطابق رقم حساب البقالة');
       return false;
     }
