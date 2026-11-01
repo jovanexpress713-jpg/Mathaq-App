@@ -44,7 +44,7 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <MazaqLogo size="sm" showSubtitle={false} logoUrl={logoUrl} />
           <div className="hidden min-w-0 flex-col pr-1 text-right sm:flex">
-            <span className="text-xs font-extrabold text-[#f5ebe1] transition-colors group-hover:text-[#e5c378]">مذاق | MAZAQ</span>
+            <span className="text-xs font-extrabold text-[#f5ebe1] transition-colors group-hover:text-[#e5c378]">مذاق | MADHAQ</span>
             <span className="text-[10px] tracking-wide text-[#9b8977]">طعم الأصالة في كل لقمة</span>
           </div>
         </button>
