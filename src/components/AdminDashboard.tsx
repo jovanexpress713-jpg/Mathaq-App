@@ -975,6 +975,40 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
                 </div>
                 <div>
+                  <label className="block text-xs text-[#857361] mb-1">العنوان الرئيسي للمتجر</label>
+                  <textarea
+                    value={settings.address || ''}
+                    onChange={(e) => setSettings({ ...settings, address: e.target.value })}
+                    rows={2}
+                    placeholder="اكتب عنوان المتجر بالتفصيل"
+                    className="w-full px-3 py-2 rounded-xl bg-[#120d0a] border border-[#2d2118] text-xs"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-[#857361]">أرقام إضافية للتواصل</label>
+                    <button type="button" onClick={() => setSettings({ ...settings, contactPhones: [...(settings.contactPhones || []), ''] })} className="px-3 py-1 rounded-lg bg-[#2a1c14] text-[#c69a59] text-xs">+ إضافة رقم</button>
+                  </div>
+                  {(settings.contactPhones || []).map((phone, index) => (
+                    <div key={index} className="flex gap-2">
+                      <input type="tel" value={phone} onChange={(e) => setSettings({ ...settings, contactPhones: (settings.contactPhones || []).map((value, i) => i === index ? e.target.value : value) })} placeholder="رقم الهاتف" className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-[#120d0a] border border-[#2d2118] text-xs" />
+                      <button type="button" onClick={() => setSettings({ ...settings, contactPhones: (settings.contactPhones || []).filter((_, i) => i !== index) })} className="px-3 rounded-lg border border-[#54302a] text-red-300 text-xs">حذف</button>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-[#857361]">عناوين إضافية أو فروع</label>
+                    <button type="button" onClick={() => setSettings({ ...settings, contactAddresses: [...(settings.contactAddresses || []), ''] })} className="px-3 py-1 rounded-lg bg-[#2a1c14] text-[#c69a59] text-xs">+ إضافة عنوان</button>
+                  </div>
+                  {(settings.contactAddresses || []).map((address, index) => (
+                    <div key={index} className="flex gap-2">
+                      <textarea value={address} onChange={(e) => setSettings({ ...settings, contactAddresses: (settings.contactAddresses || []).map((value, i) => i === index ? e.target.value : value) })} rows={2} placeholder="العنوان أو موقع الفرع" className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-[#120d0a] border border-[#2d2118] text-xs" />
+                      <button type="button" onClick={() => setSettings({ ...settings, contactAddresses: (settings.contactAddresses || []).filter((_, i) => i !== index) })} className="px-3 rounded-lg border border-[#54302a] text-red-300 text-xs">حذف</button>
+                    </div>
+                  ))}
+                </div>
+                <div>
                   <label className="block text-xs text-[#857361] mb-1">ساعات العمل</label>
                   <input
                     type="text"
