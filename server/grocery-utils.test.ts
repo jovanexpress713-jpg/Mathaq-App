@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizePhone } from '../src/utils/grocery';
+import { normalizePhone } from '../src/grocery';
 
 test('normalizes phone numbers by removing formatting characters', () => {
   assert.equal(normalizePhone('+967 777-111-9726'), '9677771119726');
