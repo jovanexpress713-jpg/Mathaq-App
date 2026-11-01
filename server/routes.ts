@@ -130,11 +130,20 @@ router.get('/products', (req: Request, res: Response) => {
     const all = req.query.all === 'true';
 
     if (all) {
-      const products = db.getAllProducts(req.query.archived === 'true');
+      const products = db.getAllProducts(req.query.archived === 'true').map(({ wholesalePrice, ...product }) => product);
       return res.json({ success: true, data: products });
     }
 
     const products = db.getProducts(categoryId, search).map(({ wholesalePrice, ...product }) => product);
+    res.json({ success: true, data: products });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/admin/products', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const products = db.getAllProducts(req.query.archived === 'true');
     res.json({ success: true, data: products });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -199,7 +208,7 @@ router.put('/products/:id', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']),
     if (wholesalePrice !== undefined && wholesalePrice !== null && wholesalePrice !== '' && (!Number.isFinite(Number(wholesalePrice)) || Number(wholesalePrice) < 0)) {
       return res.status(400).json({ success: false, error: 'سعر الجملة يجب أن يكون رقماً صحيحاً غير سالب' });
     }
-    if (wholesalePrice === '') req.body.wholesalePrice = undefined;
+    if (wholesalePrice === '') req.body.wholesalePrice = null;
     const actor = req.user?.name || 'Owner';
     const updated = db.updateProduct(id, req.body, actor);
     if (!updated) {
