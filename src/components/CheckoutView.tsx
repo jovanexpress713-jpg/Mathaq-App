@@ -164,7 +164,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
       const itemsList = order.items
         .map((i) => {
           const optStr =
-            i.selectedOptions && i.selectedOptions.length > 0
+            Array.isArray(i.selectedOptions) && i.selectedOptions.length > 0
               ? ` (${i.selectedOptions.map((o) => o.choiceName || o.name).join('، ')})`
               : '';
           return `▫️ *${i.quantity}x ${i.productName || i.name}*${optStr} = ${i.totalItemPrice ?? i.totalPrice ?? 0} ريال`;
