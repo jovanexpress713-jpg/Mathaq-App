@@ -11,7 +11,7 @@ import apiRouter from './server/routes';
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   // Body parsers with generous limits for image uploads
   app.use(express.json({ limit: '15mb' }));
@@ -33,7 +33,7 @@ async function startServer() {
       server: {
         middlewareMode: true,
         host: '0.0.0.0',
-        port: 3000,
+        port: PORT,
       },
       appType: 'spa',
     });

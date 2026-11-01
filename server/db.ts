@@ -14,20 +14,97 @@ import {
   ShopSettings,
   AdminUser,
   AuditLog,
+  DiscountCoupon,
 } from '../src/types';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_DIR = path.resolve(process.env.MAZAQ_DATA_DIR || path.join(process.cwd(), 'data'));
 const DB_FILE = path.join(DATA_DIR, 'mazaq_db.json');
+const DB_BACKUP_FILE = path.join(DATA_DIR, 'mazaq_db.json.bak');
+
+type SubmittedOption = { optionId?: string; choiceId?: string; optionName?: string; choiceName?: string; id?: string; name?: string };
+type ResolvedOption = { optionId: string; optionName: string; choiceId: string; choiceName: string; priceModifier: number };
+
+export function resolveProductSelections(
+  options: Product['options'],
+  submitted: unknown
+): { success: true; selections: ResolvedOption[] } | { success: false; error: string } {
+  const raw: Array<{ groupKey?: string; value: SubmittedOption }> = [];
+  if (Array.isArray(submitted)) {
+    for (const item of submitted) {
+      if (!item || typeof item !== 'object') return { success: false, error: 'خيارات المنتج غير صحيحة' };
+      raw.push({ value: item as SubmittedOption });
+    }
+  } else if (submitted && typeof submitted === 'object') {
+    for (const [groupKey, value] of Object.entries(submitted as Record<string, unknown>)) {
+      if (!value || typeof value !== 'object') return { success: false, error: 'خيارات المنتج غير صحيحة' };
+      raw.push({ groupKey, value: value as SubmittedOption });
+    }
+  } else if (submitted !== undefined && submitted !== null) {
+    return { success: false, error: 'خيارات المنتج غير صحيحة' };
+  }
+
+  const selections: ResolvedOption[] = [];
+  for (const entry of raw) {
+    const group = options.find((candidate) =>
+      candidate.id === entry.value.optionId ||
+      candidate.name === entry.value.optionName ||
+      candidate.id === entry.groupKey ||
+      candidate.name === entry.groupKey
+    );
+    if (!group) return { success: false, error: 'أحد خيارات المنتج لم يعد متاحاً، حدّث الصفحة وحاول مجدداً' };
+    const choice = group.choices.find((candidate) =>
+      candidate.id === entry.value.choiceId ||
+      candidate.id === entry.value.id ||
+      candidate.name === entry.value.choiceName ||
+      candidate.name === entry.value.name
+    );
+    if (!choice) return { success: false, error: 'أحد اختيارات المنتج لم يعد متاحاً، حدّث الصفحة وحاول مجدداً' };
+    if (selections.some((selection) => selection.optionId === (group.id || group.name))) {
+      return { success: false, error: 'لا يمكن اختيار أكثر من قيمة لنفس الخيار' };
+    }
+    selections.push({
+      optionId: group.id || group.name,
+      optionName: group.name,
+      choiceId: choice.id || choice.name,
+      choiceName: choice.name,
+      priceModifier: choice.priceModifier,
+    });
+  }
+
+  for (const group of options) {
+    if (group.required && !selections.some((selection) => selection.optionId === (group.id || group.name))) {
+      return { success: false, error: `يرجى اختيار ${group.name}` };
+    }
+  }
+  return { success: true, selections };
+}
+
+export interface GroceryAccount {
+  id: string;
+  storeName: string;
+  contactName: string;
+  phone: string;
+  address: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  passwordHash: string;
+  salt: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface DatabaseSchema {
   settings: ShopSettings;
   categories: Category[];
   products: Product[];
   offers: Offer[];
+  coupons: DiscountCoupon[];
   orders: Order[];
   adminUsers: (AdminUser & { passwordHash: string; salt: string })[];
   auditLogs: AuditLog[];
   sessions: { token: string; userId: string; expiresAt: number }[];
+  groceryAccounts: GroceryAccount[];
+  grocerySessions: { token: string; accountId: string; expiresAt: number }[];
+  notifications: { id: string; title: string; body: string; type: 'ORDER_NEW' | 'ORDER_STATUS' | 'GROCERY_PENDING' | 'GROCERY_STATUS'; referenceId?: string; isRead: boolean; createdAt: string }[];
 }
 
 function hashPassword(password: string, salt?: string): { hash: string; salt: string } {
@@ -42,7 +119,11 @@ function verifyPassword(password: string, hash: string, salt: string): boolean {
 }
 
 export function generateDefaultData(): DatabaseSchema {
-  const ownerAuth = hashPassword('mazaq2026');
+  const initialAdminPassword = process.env.MAZAQ_INITIAL_ADMIN_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : 'mazaq2026');
+  if (!initialAdminPassword) {
+    throw new Error('اضبط MAZAQ_INITIAL_ADMIN_PASSWORD قبل إنشاء قاعدة بيانات إنتاجية جديدة.');
+  }
+  const ownerAuth = hashPassword(initialAdminPassword);
 
   return {
     settings: {
@@ -411,6 +492,8 @@ export function generateDefaultData(): DatabaseSchema {
         createdBy: 'Owner',
       },
     ],
+    coupons: [],
+    notifications: [],
     orders: [
       {
         id: 'ord-12345',
@@ -532,6 +615,8 @@ export function generateDefaultData(): DatabaseSchema {
       },
     ],
     sessions: [],
+    groceryAccounts: [],
+    grocerySessions: [],
   };
 }
 
@@ -541,6 +626,11 @@ class Database {
   constructor() {
     this.ensureDataDir();
     this.data = this.loadData();
+    // Backward-compatible migration for existing JSON database files.
+    this.data.coupons ||= [];
+    this.data.groceryAccounts ||= [];
+    this.data.grocerySessions ||= [];
+    this.data.notifications ||= [];
   }
 
   private ensureDataDir() {
@@ -558,17 +648,38 @@ class Database {
     try {
       const content = fs.readFileSync(DB_FILE, 'utf8');
       return JSON.parse(content);
-    } catch {
-      const defaultData = generateDefaultData();
-      fs.writeFileSync(DB_FILE, JSON.stringify(defaultData, null, 2), 'utf8');
-      return defaultData;
+    } catch (error) {
+      // Never replace an unreadable production database with demo defaults.
+      // Preserve the damaged file for manual recovery and stop startup loudly.
+      const recoveryFile = `${DB_FILE}.corrupt.${Date.now()}.bak`;
+      try {
+        fs.copyFileSync(DB_FILE, recoveryFile);
+      } catch {
+        // The original file remains untouched even if the recovery copy fails.
+      }
+      throw new Error(
+        `تعذر قراءة قاعدة بيانات مذاق. لم يتم استبدال البيانات. راجع الملف ${recoveryFile}. السبب: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
   private persist() {
     const tempFile = `${DB_FILE}.tmp.${Date.now()}`;
-    fs.writeFileSync(tempFile, JSON.stringify(this.data, null, 2), 'utf8');
-    fs.renameSync(tempFile, DB_FILE);
+    try {
+      fs.writeFileSync(tempFile, JSON.stringify(this.data, null, 2), 'utf8');
+      // Keep the last known-good database before replacing it.
+      if (fs.existsSync(DB_FILE)) {
+        fs.copyFileSync(DB_FILE, DB_BACKUP_FILE);
+      }
+      fs.renameSync(tempFile, DB_FILE);
+    } catch (error) {
+      try {
+        if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
+      } catch {
+        // Preserve the original persistence error.
+      }
+      throw error;
+    }
   }
 
   // Shop Settings
@@ -775,7 +886,84 @@ class Database {
     return true;
   }
 
+  // Grocery wholesale accounts
+  registerGroceryAccount(input: { storeName: string; contactName: string; phone: string; address: string; password: string }): { success: true; account: Omit<GroceryAccount, 'passwordHash' | 'salt'>; token: string } | { success: false; error: string } {
+    const phone = input.phone.replace(/[^0-9+]/g, '');
+    if (this.data.groceryAccounts.some((a) => a.phone.replace(/\D/g, '') === phone.replace(/\D/g, ''))) {
+      return { success: false, error: 'يوجد حساب بقالة مسجل بهذا الرقم بالفعل. سجّل الدخول أو تواصل مع الإدارة.' };
+    }
+    const auth = hashPassword(input.password);
+    const now = new Date().toISOString();
+    const account: GroceryAccount = { id: `grocery-${crypto.randomUUID()}`, storeName: input.storeName.trim(), contactName: input.contactName.trim(), phone, address: input.address.trim(), status: 'PENDING', passwordHash: auth.hash, salt: auth.salt, createdAt: now, updatedAt: now };
+    this.data.groceryAccounts.push(account);
+    const token = crypto.randomBytes(32).toString('hex');
+    this.data.grocerySessions.push({ token, accountId: account.id, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
+    this.addAuditLog('GROCERY_REGISTER', `تسجيل بقالة جديدة: ${account.storeName}`, 'عميل');
+    this.persist();
+    const { passwordHash, salt, ...safeAccount } = account;
+    return { success: true, account: safeAccount, token };
+  }
+
+  loginGroceryAccount(phone: string, password: string): { success: true; account: Omit<GroceryAccount, 'passwordHash' | 'salt'>; token: string } | { success: false; error: string } {
+    const normalized = phone.replace(/\D/g, '');
+    const account = this.data.groceryAccounts.find((a) => a.phone.replace(/\D/g, '') === normalized);
+    if (!account || !verifyPassword(password, account.passwordHash, account.salt)) return { success: false, error: 'رقم الهاتف أو كلمة المرور غير صحيحة' };
+    const token = crypto.randomBytes(32).toString('hex');
+    this.data.grocerySessions = this.data.grocerySessions.filter((s) => s.accountId !== account.id || s.expiresAt > Date.now());
+    this.data.grocerySessions.push({ token, accountId: account.id, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
+    this.persist();
+    const { passwordHash, salt, ...safeAccount } = account;
+    return { success: true, account: safeAccount, token };
+  }
+
+  getGroceryAccountByToken(token?: string): GroceryAccount | undefined {
+    if (!token) return undefined;
+    const session = this.data.grocerySessions.find((s) => s.token === token && s.expiresAt > Date.now());
+    return session ? this.data.groceryAccounts.find((a) => a.id === session.accountId) : undefined;
+  }
+
+  getGroceryAccounts(): Omit<GroceryAccount, 'passwordHash' | 'salt'>[] {
+    return this.data.groceryAccounts.map(({ passwordHash, salt, ...account }) => account).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  setGroceryAccountStatus(id: string, status: 'APPROVED' | 'REJECTED', actor: string): boolean {
+    const account = this.data.groceryAccounts.find((a) => a.id === id);
+    if (!account) return false;
+    account.status = status;
+    account.updatedAt = new Date().toISOString();
+    this.addAuditLog('GROCERY_STATUS', `تم ${status === 'APPROVED' ? 'اعتماد' : 'رفض'} حساب البقالة: ${account.storeName}`, actor);
+    this.persist();
+    return true;
+  }
+
   // Orders
+  getNotifications(unreadOnly = false) {
+    const items = this.data.notifications || [];
+    return items.filter((item) => !unreadOnly || !item.isRead).slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  addNotification(input: { title: string; body: string; type: 'ORDER_NEW' | 'ORDER_STATUS' | 'GROCERY_PENDING' | 'GROCERY_STATUS'; referenceId?: string }) {
+    const notification = { ...input, id: 'ntf-' + crypto.randomUUID(), isRead: false, createdAt: new Date().toISOString() };
+    this.data.notifications ||= [];
+    this.data.notifications.unshift(notification);
+    this.data.notifications = this.data.notifications.slice(0, 300);
+    this.persist();
+    return notification;
+  }
+
+  markNotificationRead(id: string) {
+    const item = this.data.notifications.find((entry) => entry.id === id);
+    if (!item) return false;
+    item.isRead = true;
+    this.persist();
+    return true;
+  }
+
+  markAllNotificationsRead() {
+    this.data.notifications.forEach((item) => { item.isRead = true; });
+    this.persist();
+  }
+
   getOrders(customerPhone?: string): Order[] {
     return this.data.orders
       .filter((o) => {
@@ -793,6 +981,25 @@ class Database {
    * Server-authoritative Order Creation
    * Re-evaluates product existence, pricing, options, delivery fees, and minimum order threshold!
    */
+  getCoupons(): DiscountCoupon[] { return [...this.data.coupons].sort((a,b) => a.code.localeCompare(b.code)); }
+  createCoupon(input: Omit<DiscountCoupon, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>, actor: string): DiscountCoupon {
+    const code = input.code.trim().toUpperCase();
+    if (!/^[A-Z0-9_-]{3,24}$/.test(code)) throw new Error('رمز الكوبون يجب أن يكون 3 إلى 24 حرفاً أو رقماً');
+    if (this.data.coupons.some(c => c.code === code)) throw new Error('رمز الكوبون مستخدم بالفعل');
+    const now = new Date().toISOString();
+    const coupon: DiscountCoupon = { ...input, code, id: 'coupon-' + crypto.randomUUID(), usageCount: 0, createdAt: now, updatedAt: now };
+    this.data.coupons.push(coupon); this.addAuditLog('COUPON_CREATE', 'إنشاء كوبون ' + code, actor); this.persist(); return coupon;
+  }
+  updateCoupon(id: string, updates: Partial<DiscountCoupon>, actor: string): DiscountCoupon | null {
+    const index = this.data.coupons.findIndex(c => c.id === id); if (index < 0) return null;
+    const nextCode = updates.code === undefined ? this.data.coupons[index].code : updates.code.trim().toUpperCase();
+    if (!/^[A-Z0-9_-]{3,24}$/.test(nextCode)) throw new Error('رمز الكوبون غير صالح');
+    if (this.data.coupons.some(c => c.id !== id && c.code === nextCode)) throw new Error('رمز الكوبون مستخدم بالفعل');
+    this.data.coupons[index] = { ...this.data.coupons[index], ...updates, code: nextCode, updatedAt: new Date().toISOString() };
+    this.addAuditLog('COUPON_UPDATE', 'تعديل كوبون ' + nextCode, actor); this.persist(); return this.data.coupons[index];
+  }
+  deleteCoupon(id: string, actor: string): boolean { const coupon = this.data.coupons.find(c => c.id === id); if (!coupon) return false; this.data.coupons = this.data.coupons.filter(c => c.id !== id); this.addAuditLog('COUPON_DELETE', 'حذف كوبون ' + coupon.code, actor); this.persist(); return true; }
+
   createOrder(input: {
     customer: {
       name: string;
@@ -810,14 +1017,22 @@ class Database {
     };
     items: Array<{
       productId: string;
-      selectedOptions: Array<{ optionId: string; choiceId: string }>;
+      selectedOptions?: Array<SubmittedOption> | Record<string, SubmittedOption>;
       quantity: number;
     }>;
     paymentMethod: 'CASH_ON_DELIVERY' | 'MADA_CARD' | 'APPLE_PAY' | 'WHATSAPP';
+    accountType?: 'individual' | 'grocery';
+    groceryAccountToken?: string;
+    couponCode?: string;
     notes?: string;
   }): { success: true; order: Order } | { success: false; error: string } {
     if (!input.items || input.items.length === 0) {
       return { success: false, error: 'السلة فارغة، يرجى إضافة منتجات للطلب' };
+    }
+
+    const allowedPaymentMethods = ['CASH_ON_DELIVERY', 'MADA_CARD', 'APPLE_PAY', 'WHATSAPP'];
+    if (!allowedPaymentMethods.includes(input.paymentMethod)) {
+      return { success: false, error: 'طريقة الدفع غير مدعومة' };
     }
 
     // Extract address text regardless of string or object format
@@ -839,6 +1054,12 @@ class Database {
       return { success: false, error: 'بيانات العميل والعنوان مطلوبة بالكامل' };
     }
 
+    const accountType = input.accountType === 'grocery' ? 'grocery' : 'individual';
+    const groceryAccount = accountType === 'grocery' ? this.getGroceryAccountByToken(input.groceryAccountToken) : undefined;
+    if (accountType === 'grocery' && !groceryAccount) return { success: false, error: 'سجّل الدخول بحساب البقالة أولاً لإكمال الطلب' };
+    if (accountType === 'grocery' && groceryAccount?.status !== 'APPROVED') return { success: false, error: 'حساب البقالة بانتظار موافقة الإدارة، ويمكنك الطلب بسعر الأفراد حالياً' };
+    if (accountType === 'grocery' && groceryAccount?.phone.replace(/\D/g, '') !== input.customer.phone.replace(/\D/g, '')) return { success: false, error: 'رقم هاتف الطلب يجب أن يطابق رقم حساب البقالة' };
+
     let calculatedItemsTotal = 0;
     const validatedSnapshots = [];
 
@@ -848,27 +1069,18 @@ class Database {
         return { success: false, error: `المنتج غير متوفر حالياً` };
       }
 
-      let itemPrice = product.price;
-      const chosenOptions = [];
+      const unitBasePrice = accountType === 'grocery' ? product.wholesalePrice : product.price;
+      if (accountType === 'grocery' && (unitBasePrice === undefined || unitBasePrice === null || !Number.isFinite(unitBasePrice))) return { success: false, error: `المنتج ${product.name} غير متاح بسعر الجملة حالياً` };
+      let itemPrice = unitBasePrice as number;
+      const resolved = resolveProductSelections(product.options || [], reqItem.selectedOptions);
+      if (resolved.success === false) return { success: false, error: resolved.error };
+      const chosenOptions = resolved.selections;
+      for (const selection of chosenOptions) itemPrice += selection.priceModifier;
 
-      for (const sel of reqItem.selectedOptions || []) {
-        const optDef = product.options.find((o) => o.id === sel.optionId);
-        if (optDef) {
-          const choiceDef = optDef.choices.find((c) => c.id === sel.choiceId);
-          if (choiceDef) {
-            itemPrice += choiceDef.priceModifier;
-            chosenOptions.push({
-              optionId: optDef.id,
-              optionName: optDef.name,
-              choiceId: choiceDef.id,
-              choiceName: choiceDef.name,
-              priceModifier: choiceDef.priceModifier,
-            });
-          }
-        }
+      const qty = Number(reqItem.quantity);
+      if (!Number.isSafeInteger(qty) || qty < 1 || qty > 999) {
+        return { success: false, error: 'كمية المنتج غير صحيحة (الحد الأقصى 999)' };
       }
-
-      const qty = Math.max(1, Math.floor(reqItem.quantity || 1));
       const totalItem = itemPrice * qty;
       calculatedItemsTotal += totalItem;
 
@@ -876,7 +1088,8 @@ class Database {
         productId: product.id,
         productName: product.name,
         productImage: product.image,
-        unitBasePrice: product.price,
+        unitBasePrice: unitBasePrice as number,
+        unitPrice: itemPrice,
         selectedOptions: chosenOptions,
         calculatedItemPrice: itemPrice,
         quantity: qty,
@@ -905,7 +1118,24 @@ class Database {
       deliveryFee = 0;
     }
 
-    const grandTotal = calculatedItemsTotal + deliveryFee;
+    let discountAmount = 0;
+    let appliedCoupon: DiscountCoupon | undefined;
+    const couponCode = String(input.couponCode || '').trim().toUpperCase();
+    if (couponCode) {
+      appliedCoupon = this.data.coupons.find(c => c.code === couponCode && c.isActive);
+      if (!appliedCoupon) return { success: false, error: 'كود الخصم غير صحيح أو غير نشط' };
+      const now = new Date().toISOString();
+      if (appliedCoupon.startDate && appliedCoupon.startDate > now) return { success: false, error: 'هذا الكوبون لم يبدأ بعد' };
+      if (appliedCoupon.endDate && appliedCoupon.endDate < now) return { success: false, error: 'انتهت صلاحية هذا الكوبون' };
+      if (appliedCoupon.usageLimit && appliedCoupon.usageCount >= appliedCoupon.usageLimit) return { success: false, error: 'وصل الكوبون إلى حد الاستخدام' };
+      if (calculatedItemsTotal < appliedCoupon.minOrderAmount) return { success: false, error: 'الحد الأدنى لاستخدام الكوبون هو ' + appliedCoupon.minOrderAmount + ' ' + settings.currency };
+      if (appliedCoupon.firstOrderOnly && this.data.orders.some(o => o.customer.phone.replace(/\D/g, '') === input.customer.phone.replace(/\D/g, '') && o.status !== 'Cancelled')) return { success: false, error: 'هذا الكوبون مخصص لأول عملية شراء فقط' };
+      discountAmount = appliedCoupon.discountType === 'PERCENT' ? calculatedItemsTotal * appliedCoupon.discountValue / 100 : appliedCoupon.discountValue;
+      if (appliedCoupon.maxDiscountAmount && appliedCoupon.maxDiscountAmount > 0) discountAmount = Math.min(discountAmount, appliedCoupon.maxDiscountAmount);
+      discountAmount = Math.max(0, Math.min(calculatedItemsTotal, Math.round(discountAmount * 100) / 100));
+      appliedCoupon.usageCount += 1;
+    }
+    const grandTotal = Math.max(0, calculatedItemsTotal + deliveryFee - discountAmount);
     const orderNum = `#${Math.floor(10000 + Math.random() * 90000)}`;
     const nowIso = new Date().toISOString();
 
@@ -913,13 +1143,18 @@ class Database {
       id: `ord-${Date.now()}`,
       orderNumber: orderNum,
       customer: input.customer,
+      accountType,
+      groceryAccountId: groceryAccount?.id,
+      groceryStoreName: groceryAccount?.storeName,
       items: validatedSnapshots,
       itemsTotal: calculatedItemsTotal,
       deliveryFee,
-      discountAmount: 0,
+      discountAmount,
+      couponCode: appliedCoupon?.code,
       grandTotal,
       paymentMethod: input.paymentMethod,
-      paymentStatus: (input.paymentMethod === 'CASH_ON_DELIVERY' || input.paymentMethod === 'WHATSAPP') ? 'PENDING' : 'PAID',
+      // No payment gateway is integrated yet: never mark a client-submitted card method as paid.
+      paymentStatus: 'PENDING',
       status: 'New',
       estimatedDeliveryMinutes: matchedArea?.estimatedMinutes || 25,
       timeline: [
@@ -954,6 +1189,7 @@ class Database {
     };
 
     this.data.orders.unshift(newOrder);
+    this.addNotification({ title: 'طلب جديد ' + orderNum, body: input.customer.name + ' — ' + grandTotal + ' ' + settings.currency, type: 'ORDER_NEW', referenceId: newOrder.id });
     this.addAuditLog('ORDER_CREATE', `تم إنشاء طلب جديد برقم ${orderNum} بقيمة ${grandTotal} ${settings.currency}`, input.customer.name);
     this.persist();
     return { success: true, order: newOrder };
@@ -964,6 +1200,7 @@ class Database {
     if (!order) return null;
 
     order.status = newStatus;
+    this.addNotification({ title: 'تحديث حالة الطلب ' + order.orderNumber, body: 'الحالة الجديدة: ' + newStatus, type: 'ORDER_STATUS', referenceId: order.id });
     order.updatedAt = new Date().toISOString();
 
     // Update timeline steps
@@ -1092,6 +1329,11 @@ class Database {
   // Reset to seed
   resetCatalog(actor: string) {
     const fresh = generateDefaultData();
+    // A catalog reset must never erase registered wholesale customers or their sessions.
+    fresh.coupons = this.data.coupons || [];
+    fresh.notifications = this.data.notifications || [];
+    fresh.groceryAccounts = this.data.groceryAccounts || [];
+    fresh.grocerySessions = this.data.grocerySessions || [];
     this.data = fresh;
     this.addAuditLog('CATALOG_RESET', 'تمت استعادة كتالوج البيانات الافتراضي المعتمد', actor);
     this.persist();

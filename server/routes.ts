@@ -130,11 +130,20 @@ router.get('/products', (req: Request, res: Response) => {
     const all = req.query.all === 'true';
 
     if (all) {
-      const products = db.getAllProducts(req.query.archived === 'true');
+      const products = db.getAllProducts(req.query.archived === 'true').map(({ wholesalePrice, ...product }) => product);
       return res.json({ success: true, data: products });
     }
 
-    const products = db.getProducts(categoryId, search);
+    const products = db.getProducts(categoryId, search).map(({ wholesalePrice, ...product }) => product);
+    res.json({ success: true, data: products });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/admin/products', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const products = db.getAllProducts(req.query.archived === 'true');
     res.json({ success: true, data: products });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -147,7 +156,8 @@ router.get('/products/:id', (req: Request, res: Response) => {
     if (!product) {
       return res.status(404).json({ success: false, error: 'المنتج غير موجود' });
     }
-    res.json({ success: true, data: product });
+    const { wholesalePrice, ...publicProduct } = product;
+    res.json({ success: true, data: publicProduct });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -155,9 +165,12 @@ router.get('/products/:id', (req: Request, res: Response) => {
 
 router.post('/products', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { name, description, price, oldPrice, categoryId, image, gallery, options, isFeatured, isAvailable, sortOrder } = req.body;
+    const { name, description, price, wholesalePrice, oldPrice, categoryId, image, gallery, options, isFeatured, isAvailable, sortOrder } = req.body;
     if (!name || price === undefined || !categoryId || !image) {
       return res.status(400).json({ success: false, error: 'الاسم، السعر، القسم، والصورة حقول مطلوبة' });
+    }
+    if (wholesalePrice !== undefined && wholesalePrice !== null && wholesalePrice !== '' && (!Number.isFinite(Number(wholesalePrice)) || Number(wholesalePrice) < 0)) {
+      return res.status(400).json({ success: false, error: 'سعر الجملة يجب أن يكون رقماً صحيحاً غير سالب' });
     }
 
     const actor = req.user?.name || 'Owner';
@@ -166,6 +179,7 @@ router.post('/products', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (r
         name,
         description: description || '',
         price: Number(price),
+        wholesalePrice: wholesalePrice === undefined || wholesalePrice === null || wholesalePrice === '' ? undefined : Number(wholesalePrice),
         oldPrice: oldPrice ? Number(oldPrice) : undefined,
         rating: 5.0,
         reviewsCount: 1,
@@ -190,6 +204,11 @@ router.post('/products', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (r
 router.put('/products/:id', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const wholesalePrice = req.body?.wholesalePrice;
+    if (wholesalePrice !== undefined && wholesalePrice !== null && wholesalePrice !== '' && (!Number.isFinite(Number(wholesalePrice)) || Number(wholesalePrice) < 0)) {
+      return res.status(400).json({ success: false, error: 'سعر الجملة يجب أن يكون رقماً صحيحاً غير سالب' });
+    }
+    if (wholesalePrice === '') req.body.wholesalePrice = null;
     const actor = req.user?.name || 'Owner';
     const updated = db.updateProduct(id, req.body, actor);
     if (!updated) {
@@ -316,17 +335,82 @@ router.delete('/offers/:id', authenticateAdmin, requireRoles(['OWNER', 'ADMIN'])
 });
 
 // ==========================================
+ // GROCERY ACCOUNTS & WHOLESALE ACCESS
+// ==========================================
+
+router.post('/grocery/register', (req: Request, res: Response) => {
+  try {
+    const { storeName, contactName, phone, address, password } = req.body || {};
+    if (![storeName, contactName, phone, address, password].every((v) => typeof v === 'string' && v.trim())) {
+      return res.status(400).json({ success: false, error: 'يرجى إكمال اسم البقالة واسم المسؤول والهاتف والعنوان وكلمة المرور' });
+    }
+    if (password.length < 8) return res.status(400).json({ success: false, error: 'كلمة المرور يجب ألا تقل عن 8 أحرف' });
+    if (phone.replace(/\D/g, '').length < 8) return res.status(400).json({ success: false, error: 'رقم الهاتف غير صحيح' });
+    const result = db.registerGroceryAccount({ storeName, contactName, phone, address, password });
+    if (result.success === false) return res.status(409).json({ success: false, error: result.error });
+    res.status(201).json({ success: true, data: { account: result.account, token: result.token } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/grocery/login', (req: Request, res: Response) => {
+  try {
+    const { phone, password } = req.body || {};
+    if (!phone || !password) return res.status(400).json({ success: false, error: 'رقم الهاتف وكلمة المرور مطلوبان' });
+    const result = db.loginGroceryAccount(String(phone), String(password));
+    if (result.success === false) return res.status(401).json({ success: false, error: result.error });
+    res.json({ success: true, data: { account: result.account, token: result.token } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/admin/grocery-accounts', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (_req: AuthenticatedRequest, res: Response) => {
+  res.json({ success: true, data: db.getGroceryAccounts() });
+});
+
+router.patch('/admin/grocery-accounts/:id/status', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+  const status = req.body?.status;
+  if (status !== 'APPROVED' && status !== 'REJECTED') return res.status(400).json({ success: false, error: 'الحالة غير صحيحة' });
+  const ok = db.setGroceryAccountStatus(req.params.id, status, req.user?.name || 'Admin');
+  if (!ok) return res.status(404).json({ success: false, error: 'حساب البقالة غير موجود' });
+  res.json({ success: true, message: status === 'APPROVED' ? 'تم اعتماد حساب البقالة' : 'تم رفض حساب البقالة' });
+});
+
+// MARKETING COUPONS (ADMIN ONLY)
+router.get('/admin/coupons', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (_req: AuthenticatedRequest, res: Response) => { res.json({ success: true, data: db.getCoupons() }); });
+router.post('/admin/coupons', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+  try { const b = req.body || {};
+    if (!b.code || !b.title || !['PERCENT', 'FIXED'].includes(b.discountType) || !Number.isFinite(Number(b.discountValue)) || Number(b.discountValue) <= 0) return res.status(400).json({ success: false, error: 'أكمل بيانات الكوبون وقيمة الخصم بشكل صحيح' });
+    if (b.discountType === 'PERCENT' && Number(b.discountValue) > 100) return res.status(400).json({ success: false, error: 'نسبة الخصم لا تتجاوز 100%' });
+    const data = db.createCoupon({ code: String(b.code), title: String(b.title), description: String(b.description || ''), discountType: b.discountType, discountValue: Number(b.discountValue), minOrderAmount: Math.max(0, Number(b.minOrderAmount) || 0), maxDiscountAmount: b.maxDiscountAmount ? Number(b.maxDiscountAmount) : undefined, firstOrderOnly: Boolean(b.firstOrderOnly), usageLimit: b.usageLimit ? Number(b.usageLimit) : undefined, startDate: b.startDate || new Date().toISOString(), endDate: b.endDate || new Date(Date.now() + 30*86400000).toISOString(), isActive: b.isActive !== false }, req.user?.name || 'Admin');
+    res.status(201).json({ success: true, data });
+  } catch (err: any) { res.status(400).json({ success: false, error: err.message }); }
+});
+router.put('/admin/coupons/:id', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+  try { const data = db.updateCoupon(req.params.id, req.body, req.user?.name || 'Admin'); if (!data) return res.status(404).json({ success: false, error: 'الكوبون غير موجود' }); res.json({ success: true, data }); }
+  catch (err: any) { res.status(400).json({ success: false, error: err.message }); }
+});
+router.delete('/admin/coupons/:id', authenticateAdmin, requireRoles(['OWNER', 'ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+  const ok = db.deleteCoupon(req.params.id, req.user?.name || 'Admin'); if (!ok) return res.status(404).json({ success: false, error: 'الكوبون غير موجود' }); res.json({ success: true, message: 'تم حذف الكوبون' });
+});
+
+// ==========================================
 // 5. ORDERS (SERVER-AUTHORITATIVE)
 // ==========================================
 
 // Create Order (Public client checkout)
 router.post('/orders', (req: Request, res: Response) => {
   try {
-    const { customer, items, paymentMethod, notes } = req.body;
+    const { customer, items, paymentMethod, notes, accountType, groceryAccountToken, couponCode } = req.body;
     const result = db.createOrder({
       customer,
       items,
       paymentMethod: paymentMethod || 'WHATSAPP',
+      accountType,
+      groceryAccountToken,
+      couponCode,
       notes,
     });
 
@@ -345,7 +429,7 @@ router.post('/orders', (req: Request, res: Response) => {
 });
 
 // Get Orders (Admin or Customer query by phone)
-router.get('/orders', (req: Request, res: Response) => {
+router.get('/orders', authenticateAdmin, requireRoles(['OWNER', 'ADMIN', 'MANAGER']), (req: AuthenticatedRequest, res: Response) => {
   try {
     const phone = req.query.phone as string | undefined;
     const orders = db.getOrders(phone);
@@ -356,7 +440,7 @@ router.get('/orders', (req: Request, res: Response) => {
 });
 
 // Get Order Details by ID or Number
-router.get('/orders/:id', (req: Request, res: Response) => {
+router.get('/orders/:id', authenticateAdmin, requireRoles(['OWNER', 'ADMIN', 'MANAGER']), (req: AuthenticatedRequest, res: Response) => {
   try {
     const order = db.getOrderById(req.params.id);
     if (!order) {
@@ -386,6 +470,21 @@ router.patch('/orders/:id/status', authenticateAdmin, requireRoles(['OWNER', 'AD
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// ==========================================
+ // ADMIN NOTIFICATION INBOX
+// ==========================================
+router.get('/admin/notifications', authenticateAdmin, requireRoles(['OWNER', 'ADMIN', 'MANAGER']), (req: AuthenticatedRequest, res: Response) => {
+  res.json({ success: true, data: db.getNotifications(req.query.unread === 'true') });
+});
+router.patch('/admin/notifications/read-all', authenticateAdmin, requireRoles(['OWNER', 'ADMIN', 'MANAGER']), (_req: AuthenticatedRequest, res: Response) => {
+  db.markAllNotificationsRead();
+  res.json({ success: true, message: 'تم تعليم الإشعارات كمقروءة' });
+});
+router.patch('/admin/notifications/:id/read', authenticateAdmin, requireRoles(['OWNER', 'ADMIN', 'MANAGER']), (req: AuthenticatedRequest, res: Response) => {
+  if (!db.markNotificationRead(req.params.id)) return res.status(404).json({ success: false, error: 'الإشعار غير موجود' });
+  res.json({ success: true, message: 'تم تعليم الإشعار كمقروء' });
 });
 
 // ==========================================

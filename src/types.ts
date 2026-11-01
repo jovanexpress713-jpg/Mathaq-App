@@ -38,6 +38,14 @@ export interface Offer {
   createdBy?: string;
 }
 
+export interface DiscountCoupon {
+  id: string; code: string; title: string; description?: string;
+  discountType: 'PERCENT' | 'FIXED'; discountValue: number; minOrderAmount: number;
+  maxDiscountAmount?: number; firstOrderOnly: boolean; usageLimit?: number;
+  usageCount: number; startDate: string; endDate: string; isActive: boolean;
+  createdAt: string; updatedAt: string;
+}
+
 export interface Category {
   id: string;
   name: string;
@@ -73,6 +81,7 @@ export interface Product {
   image: string;
   gallery: string[];
   price: number;
+  wholesalePrice?: number | null;
   oldPrice?: number;
   rating: number;
   reviewsCount: number;
@@ -162,12 +171,16 @@ export interface CustomerInfo {
 
 export interface Order {
   id: string;
+  accountType?: 'individual' | 'grocery';
+  groceryStoreName?: string;
+  groceryAccountId?: string;
   orderNumber: string; // e.g. "#12345" or "MZQ-2026-0001"
   customer: CustomerInfo;
   items: OrderItemSnapshot[];
   itemsTotal: number;
   deliveryFee: number;
   discountAmount?: number;
+  couponCode?: string;
   grandTotal: number;
   paymentMethod: PaymentMethod;
   paymentStatus?: 'PENDING' | 'PAID';

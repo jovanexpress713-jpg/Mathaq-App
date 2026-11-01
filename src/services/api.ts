@@ -11,6 +11,7 @@ import {
   ShopSettings,
   AdminUser,
   AuditLog,
+  DiscountCoupon,
 } from '../types';
 
 const API_BASE = '/api';
@@ -85,7 +86,8 @@ export const api = {
     if (search) params.set('search', search);
     if (all) params.set('all', 'true');
     const query = params.toString() ? `?${params.toString()}` : '';
-    return fetchJson<Product[]>(`${API_BASE}/products${query}`);
+    const endpoint = all ? `${API_BASE}/admin/products${query}` : `${API_BASE}/products${query}`;
+    return fetchJson<Product[]>(endpoint);
   },
   getProductById: (id: string) => fetchJson<Product>(`${API_BASE}/products/${id}`),
   createProduct: (product: Partial<Product>) =>
@@ -121,11 +123,29 @@ export const api = {
       method: 'DELETE',
     }),
 
+  // Marketing coupons
+  getCoupons: () => fetchJson<DiscountCoupon[]>(`${API_BASE}/admin/coupons`),
+  createCoupon: (coupon: Partial<DiscountCoupon>) => fetchJson<DiscountCoupon>(`${API_BASE}/admin/coupons`, { method: 'POST', body: JSON.stringify(coupon) }),
+  updateCoupon: (id: string, coupon: Partial<DiscountCoupon>) => fetchJson<DiscountCoupon>(`${API_BASE}/admin/coupons/${id}`, { method: 'PUT', body: JSON.stringify(coupon) }),
+  deleteCoupon: (id: string) => fetchJson<{ message: string }>(`${API_BASE}/admin/coupons/${id}`, { method: 'DELETE' }),
+
+  // Grocery wholesale accounts
+  registerGrocery: (payload: { storeName: string; contactName: string; phone: string; address: string; password: string }) =>
+    fetchJson<{ account: any; token: string }>(`${API_BASE}/grocery/register`, { method: 'POST', body: JSON.stringify(payload) }),
+  loginGrocery: (phone: string, password: string) =>
+    fetchJson<{ account: any; token: string }>(`${API_BASE}/grocery/login`, { method: 'POST', body: JSON.stringify({ phone, password }) }),
+  getGroceryAccounts: () => fetchJson<any[]>(`${API_BASE}/admin/grocery-accounts`),
+  setGroceryAccountStatus: (id: string, status: 'APPROVED' | 'REJECTED') =>
+    fetchJson<{ message: string }>(`${API_BASE}/admin/grocery-accounts/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+
   // Orders
   createOrder: (payload: {
     customer: any;
     items: any[];
     paymentMethod: string;
+    accountType?: 'individual' | 'grocery';
+    groceryAccountToken?: string;
+    couponCode?: string;
     notes?: string;
   }) =>
     fetchJson<Order>(`${API_BASE}/orders`, {
@@ -140,6 +160,11 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     }),
+
+  // Admin notifications
+  getNotifications: (unread = false) => fetchJson<Array<{ id: string; title: string; body: string; type: string; referenceId?: string; isRead: boolean; createdAt: string }>>(`${API_BASE}/admin/notifications${unread ? '?unread=true' : ''}`),
+  markNotificationRead: (id: string) => fetchJson<{ message: string }>(`${API_BASE}/admin/notifications/${id}/read`, { method: 'PATCH' }),
+  markAllNotificationsRead: () => fetchJson<{ message: string }>(`${API_BASE}/admin/notifications/read-all`, { method: 'PATCH' }),
 
   // Auth & Admin
   login: async (username: string, password: string): Promise<{ token: string; user: AdminUser }> => {

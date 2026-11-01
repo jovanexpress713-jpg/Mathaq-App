@@ -11,16 +11,47 @@
     --color-surface-dark: #16100c;
     --color-surface-card: #1c140f;
     --color-border-dark: #2d2118;
+    color-scheme: dark;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html {
+    min-height: 100%;
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+    background: var(--color-bg-dark);
   }
 
   body {
+    min-width: 320px;
+    min-height: 100vh;
+    margin: 0;
+    overflow-x: hidden;
     font-family: var(--font-cairo);
-    background-color: var(--color-bg-dark);
+    background:
+      radial-gradient(ellipse at 50% -18%, rgba(198, 154, 89, 0.09), transparent 42%),
+      var(--color-bg-dark);
     color: #f5ebe1;
     letter-spacing: -0.01em;
   }
 
-  /* Custom scrollbar for dark luxury UI */
+  button, a {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button:focus-visible, a:focus-visible {
+    outline: 2px solid var(--color-gold-light);
+    outline-offset: 3px;
+  }
+
+  ::selection {
+    color: #0c0907;
+    background: #c69a59;
+  }
+
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -29,7 +60,7 @@
     background: #0c0907;
   }
   ::-webkit-scrollbar-thumb {
-    background: #2d2118;
+    background: #3a2a1d;
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
@@ -40,6 +71,7 @@
 .gold-gradient-text {
   background: linear-gradient(135deg, #f5d496 0%, #c69a59 50%, #9e7432 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
@@ -51,3 +83,11 @@
   box-shadow: 0 4px 20px rgba(198, 154, 89, 0.25);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

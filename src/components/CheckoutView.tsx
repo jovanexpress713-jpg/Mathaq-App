@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { CartItem, CustomerInfo, DeliveryZone, Order, PaymentMethod, ShopSettings } from '../types';
 import { api } from '../services/api';
+import { normalizePhone } from '../grocery';
 
 interface CheckoutViewProps {
   cart: CartItem[];
@@ -59,6 +60,28 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('WHATSAPP');
   const [orderNotes, setOrderNotes] = useState('');
+  const [couponCode, setCouponCode] = useState('');
+  const [accountType, setAccountType] = useState<'individual' | 'grocery'>('individual');
+  const [groceryMode, setGroceryMode] = useState<'register' | 'login'>('register');
+  const [groceryForm, setGroceryForm] = useState({ storeName: '', contactName: '', phone: '', address: '', password: '' });
+  const [groceryAccount, setGroceryAccount] = useState<any>(null);
+  const [groceryToken, setGroceryToken] = useState('');
+  const [groceryMessage, setGroceryMessage] = useState('');
+
+  const handleGroceryAuth = async () => {
+    setGroceryMessage('');
+    try {
+      const result = groceryMode === 'register'
+        ? await api.registerGrocery(groceryForm)
+        : await api.loginGrocery(groceryForm.phone, groceryForm.password);
+      setGroceryAccount(result.account);
+      setGroceryToken(result.token);
+      setCustomer({ ...customer, phone: groceryForm.phone, ...(result.account.contactName ? { name: result.account.contactName } : {}) });
+      setGroceryMessage(result.account.status === 'APPROVED' ? 'تم تسجيل الدخول. أسعار الجملة مفعّلة لحسابك.' : 'تم استلام بيانات البقالة. حسابك بانتظار موافقة الإدارة، ويمكنك الطلب بسعر الأفراد الآن.');
+    } catch (err: any) {
+      setGroceryMessage(err.message || 'تعذر إكمال العملية');
+    }
+  };
 
   // Calculations
   const itemsTotal = cart.reduce((sum, i) => sum + i.totalPrice, 0);
@@ -79,6 +102,14 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     }
     if (!customer.address.trim()) {
       setErrorMessage('يرجى كتابة تفاصيل العنوان والشارع');
+      return false;
+    }
+    if (accountType === 'grocery' && (!groceryToken || groceryAccount?.status !== 'APPROVED')) {
+      setErrorMessage('للطلب بسعر الجملة يجب تسجيل الدخول بحساب بقالة معتمد. يمكنك اختيار طلب أفراد بدلاً من ذلك.');
+      return false;
+    }
+    if (accountType === 'grocery' && normalizePhone(groceryForm.phone) !== normalizePhone(customer.phone)) {
+      setErrorMessage('رقم هاتف المستلم يجب أن يطابق رقم حساب البقالة');
       return false;
     }
     setErrorMessage(null);
@@ -117,6 +148,9 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           selectedOptions: i.selectedOptions,
         })),
         paymentMethod: 'WHATSAPP',
+        accountType,
+        groceryAccountToken: accountType === 'grocery' ? groceryToken : undefined,
+        couponCode: couponCode.trim() || undefined,
         notes: orderNotes,
       });
 
@@ -130,13 +164,13 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
         cleanPhone = '967' + cleanPhone;
       }
 
-      const itemsList = cart
+      const itemsList = order.items
         .map((i) => {
           const optStr =
-            i.selectedOptions && i.selectedOptions.length > 0
+            Array.isArray(i.selectedOptions) && i.selectedOptions.length > 0
               ? ` (${i.selectedOptions.map((o) => o.choiceName || o.name).join('، ')})`
               : '';
-          return `▫️ *${i.quantity}x ${i.name}*${optStr} = ${i.totalPrice} ريال`;
+          return `▫️ *${i.quantity}x ${i.productName || i.name}*${optStr} = ${i.totalItemPrice ?? i.totalPrice ?? 0} ريال`;
         })
         .join('\n');
 
@@ -151,9 +185,9 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
         `━━━━━━━━━━━━━━━━━━━\n` +
         `*الأصناف المطلوبة:*\n${itemsList}\n` +
         `━━━━━━━━━━━━━━━━━━━\n` +
-        `*مجموع الأصناف:* ${itemsTotal} ريال\n` +
-        `*رسوم التوصيل:* ${deliveryFee === 0 ? 'مجاناً ✨' : `${deliveryFee} ريال`}\n` +
-        `*الإجمالي النهائي المطلوب:* ${grandTotal} ريال\n` +
+        `*مجموع الأصناف:* ${order.itemsTotal} ريال\n` +
+        `*رسوم التوصيل:* ${order.deliveryFee === 0 ? 'مجاناً ✨' : `${order.deliveryFee} ريال`}\n` +
+        `*الإجمالي النهائي المطلوب:* ${order.grandTotal} ريال\n` +
         `*طريقة الدفع:* الدفع والتحويل عبر الواتساب 💬\n` +
         (orderNotes ? `*ملاحظات إضافية:* ${orderNotes}\n` : '') +
         `━━━━━━━━━━━━━━━━━━━\n` +
@@ -249,6 +283,28 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
               <MapPin className="w-3.5 h-3.5" />
               <span>بيانات المستلم</span>
             </h2>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setAccountType('individual')} className={`rounded-xl border p-2.5 text-xs font-bold ${accountType === 'individual' ? 'border-[#c69a59] bg-[#251b14] text-[#f5ebe1]' : 'border-[#2d2118] text-[#857361]'}`}>طلب أفراد</button>
+              <button type="button" onClick={() => setAccountType('grocery')} className={`rounded-xl border p-2.5 text-xs font-bold ${accountType === 'grocery' ? 'border-[#c69a59] bg-[#251b14] text-[#f5ebe1]' : 'border-[#2d2118] text-[#857361]'}`}>حساب بقالة / جملة</button>
+            </div>
+            {accountType === 'grocery' && (
+              <div className="rounded-xl border border-[#3d2c1d] bg-[#120d0a] p-3 space-y-3">
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setGroceryMode('register')} className={`text-[11px] px-3 py-1.5 rounded-lg ${groceryMode === 'register' ? 'bg-[#c69a59] text-black' : 'bg-[#251b14] text-[#b8a594]'}`}>تسجيل بقالة جديدة</button>
+                  <button type="button" onClick={() => setGroceryMode('login')} className={`text-[11px] px-3 py-1.5 rounded-lg ${groceryMode === 'login' ? 'bg-[#c69a59] text-black' : 'bg-[#251b14] text-[#b8a594]'}`}>لدي حساب</button>
+                </div>
+                {groceryMode === 'register' && <>
+                  <input value={groceryForm.storeName} onChange={e => setGroceryForm({...groceryForm, storeName:e.target.value})} placeholder="اسم البقالة" className="w-full px-3 py-2 rounded-lg bg-[#18110c] border border-[#2d2118] text-xs" />
+                  <input value={groceryForm.contactName} onChange={e => setGroceryForm({...groceryForm, contactName:e.target.value})} placeholder="اسم المسؤول" className="w-full px-3 py-2 rounded-lg bg-[#18110c] border border-[#2d2118] text-xs" />
+                  <input value={groceryForm.address} onChange={e => setGroceryForm({...groceryForm, address:e.target.value})} placeholder="عنوان البقالة" className="w-full px-3 py-2 rounded-lg bg-[#18110c] border border-[#2d2118] text-xs" />
+                </>}
+                <input value={groceryForm.phone} onChange={e => setGroceryForm({...groceryForm, phone:e.target.value})} placeholder="رقم هاتف حساب البقالة" dir="ltr" className="w-full px-3 py-2 rounded-lg bg-[#18110c] border border-[#2d2118] text-xs text-right" />
+                <input type="password" value={groceryForm.password} onChange={e => setGroceryForm({...groceryForm, password:e.target.value})} placeholder="كلمة المرور (8 أحرف على الأقل)" className="w-full px-3 py-2 rounded-lg bg-[#18110c] border border-[#2d2118] text-xs" />
+                <button type="button" onClick={handleGroceryAuth} className="w-full rounded-lg bg-[#c69a59] text-[#120d0a] py-2.5 text-xs font-bold">{groceryMode === 'register' ? 'إرسال طلب تسجيل البقالة' : 'تسجيل الدخول'}</button>
+                {groceryMessage && <p className="text-[11px] text-[#c69a59] leading-5">{groceryMessage}</p>}
+                {groceryAccount && <p className="text-[10px] text-[#b8a594]">الحساب: {groceryAccount.storeName} — {groceryAccount.status === 'APPROVED' ? 'معتمد' : groceryAccount.status === 'PENDING' ? 'بانتظار الموافقة' : 'مرفوض'}</p>}
+              </div>
+            )}
 
             <div>
               <label className="block text-[11px] text-[#b8a594] mb-1">الاسم الكامل *</label>
@@ -422,7 +478,15 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
 
       {/* STEP 3: Order Review */}
       {currentStep === 3 && (
+        <div className="mb-4 rounded-2xl border border-[#3d2c1d] bg-[#18110c] p-4 space-y-2">
+          <label className="text-xs font-bold text-[#e5c378]">كود الخصم</label>
+          <input value={couponCode} onChange={e => setCouponCode(e.target.value.toUpperCase())} placeholder="أدخل كود الخصم إن وجد" dir="ltr" className="w-full rounded-xl border border-[#3d2c1d] bg-[#100b08] px-3 py-3 text-sm text-left tracking-wider" />
+          <p className="text-[10px] text-[#9b8977]">سيتم التحقق من صلاحية الكوبون وحساب الخصم تلقائياً عند تأكيد الطلب.</p>
+        </div>
+      )}
+      {currentStep === 3 && (
         <div className="space-y-4">
+          {accountType === 'grocery' && <div className="rounded-xl border border-[#8a642d] bg-[#251b14] p-3 text-[11px] leading-5 text-[#e7c994]">تم اعتماد حساب الجملة. سيحسب الخادم أسعار الجملة الفعلية عند تأكيد الطلب، ولن نعتمد أسعار الأفراد الظاهرة في السلة.</div>}
           {/* Items Summary */}
           <div className="p-4 bg-[#18110c] border border-[#2d2118] rounded-2xl space-y-3">
             <h2 className="text-xs font-bold text-[#c69a59]">محتويات الطلب ({cart.length} أصناف)</h2>
@@ -433,7 +497,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     <span className="font-bold text-[#c69a59]">{item.quantity}x</span>
                     <span className="text-[#f5ebe1]">{item.name}</span>
                   </div>
-                  <span className="text-[#b8a594]">{item.totalPrice} ريال</span>
+                  <span className="text-[#b8a594]">{accountType === 'grocery' ? 'سعر الجملة عند التأكيد' : `${item.totalPrice} ريال`}</span>
                 </div>
               ))}
             </div>
@@ -465,6 +529,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           </div>
 
           {/* Financial Totals */}
+          {accountType === 'individual' ? (
           <div className="p-4 bg-[#18110c] border border-[#2d2118] rounded-2xl space-y-2 text-xs">
             <div className="flex justify-between text-[#b8a594]">
               <span>مجموع المنتجات:</span>
@@ -484,6 +549,9 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
               </div>
             </div>
           </div>
+          ) : (
+            <div className="p-4 bg-[#18110c] border border-[#2d2118] rounded-2xl text-xs text-[#b8a594]">سيظهر الإجمالي النهائي بسعر الجملة بعد إعادة احتساب المنتجات على الخادم عند تأكيد الطلب.</div>
+          )}
         </div>
       )}
 
@@ -510,7 +578,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             ) : (
               <>
                 <MessageCircle className="w-5 h-5 fill-current" />
-                <span className="text-sm font-black">تأكيد الطلب والدفع عبر الواتساب ({grandTotal} ريال)</span>
+                <span className="text-sm font-black">{accountType === 'grocery' ? 'تأكيد طلب الجملة والدفع عبر الواتساب' : `تأكيد الطلب والدفع عبر الواتساب (${grandTotal} ريال)`}</span>
               </>
             )}
           </button>

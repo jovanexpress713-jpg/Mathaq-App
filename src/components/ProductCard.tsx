@@ -1,10 +1,10 @@
 /**
- * MAZAQ Product Card Component
- * Dark luxury styling with gold pricing and intuitive add-to-cart actions.
+ * MAZAQ Product Card
+ * Accessible product preview with graceful image fallback and clear purchase actions.
  */
 
-import React from 'react';
-import { Star, Plus } from 'lucide-react';
+import React, { useState } from 'react';
+import { ImageOff, Plus, Star } from 'lucide-react';
 import { Product } from '../types';
 
 interface ProductCardProps {
@@ -18,76 +18,84 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onClick,
   onQuickAdd,
 }) => {
-  return (
-    <div
-      id={`product-card-${product.id}`}
-      onClick={onClick}
-      className="group flex flex-col justify-between bg-[#19120e] hover:bg-[#201712] border border-[#2d2118] hover:border-[#c69a59] rounded-2xl overflow-hidden transition-all duration-300 shadow-md hover:shadow-xl cursor-pointer"
-    >
-      {/* Product Image Container */}
-      <div className="relative w-full aspect-square overflow-hidden bg-[#120d0a]">
-        <img
-          src={product.image}
-          alt={product.name}
-          className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
-          referrerPolicy="no-referrer"
-          loading="lazy"
-        />
+  const [imageFailed, setImageFailed] = useState(false);
 
-        {/* Rating Badge */}
-        <div className="absolute top-2.5 right-2.5 flex items-center gap-1 bg-[#120d0a]/85 backdrop-blur-sm px-2 py-0.5 rounded-full text-[11px] font-bold text-[#f5ebe1] border border-[#3d2c1d]">
-          <Star className="w-3 h-3 text-[#c69a59] fill-[#c69a59]" />
-          <span>{product.rating.toFixed(1)}</span>
+  return (
+    <article
+      id={`product-card-${product.id}`}
+      className="group flex min-w-0 flex-col overflow-hidden rounded-[1.35rem] border border-[#38291d] bg-[linear-gradient(155deg,#21170f_0%,#17100c_72%)] shadow-[0_8px_24px_rgba(0,0,0,0.16)] transition-all duration-300 hover:-translate-y-1 hover:border-[#987344] hover:shadow-[0_16px_34px_rgba(0,0,0,0.3)]"
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={`عرض تفاصيل ${product.name}`}
+        className="w-full text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#e5c378]"
+      >
+        <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#120d0a]">
+          {product.image && !imageFailed ? (
+            <img
+              src={product.image}
+              alt={product.name}
+              onError={() => setImageFailed(true)}
+              className="h-full w-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
+              referrerPolicy="no-referrer"
+              loading="lazy"
+            />
+          ) : (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-[radial-gradient(circle_at_center,#302216_0%,#120d0a_72%)] text-[#9a7950]">
+              <ImageOff className="h-7 w-7 opacity-80" />
+              <span className="text-[10px] font-semibold">الصورة غير متاحة</span>
+            </div>
+          )}
+
+          {Number.isFinite(product.rating) && product.rating > 0 && (
+            <div className="absolute right-2.5 top-2.5 flex items-center gap-1 rounded-full border border-white/10 bg-[#120d0a]/85 px-2 py-1 text-[10px] font-extrabold text-[#fff5e8] backdrop-blur-md">
+              <Star className="h-3 w-3 fill-[#e5c378] text-[#e5c378]" />
+              <span>{product.rating.toFixed(1)}</span>
+            </div>
+          )}
+
+          {product.oldPrice && product.oldPrice > product.price && (
+            <span className="absolute left-2.5 top-2.5 rounded-full bg-[#8f2922] px-2 py-1 text-[9px] font-extrabold text-white shadow-lg">
+              وفر {product.oldPrice - product.price} ريال
+            </span>
+          )}
+          <span className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[#17100c]/70 to-transparent" />
         </div>
 
-        {/* Old Price / Discount ribbon if applicable */}
-        {product.oldPrice && product.oldPrice > product.price && (
-          <div className="absolute top-2.5 left-2.5 bg-[#b91c1c] text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow">
-            وفر {product.oldPrice - product.price} ريال
-          </div>
-        )}
-      </div>
-
-      {/* Product Information */}
-      <div className="p-3.5 flex flex-col flex-1 justify-between text-right">
-        <div>
-          <h3 className="text-sm font-bold text-[#f5ebe1] group-hover:text-[#c69a59] transition-colors line-clamp-1">
+        <div className="space-y-1 px-3 pt-3 text-right">
+          <h3 className="line-clamp-1 text-[13px] font-extrabold leading-6 text-[#f8eee3] transition-colors group-hover:text-[#e5c378]">
             {product.name}
           </h3>
-          <p className="text-xs text-[#857361] mt-1 line-clamp-2 leading-relaxed">
-            {product.description}
-          </p>
+          {product.description && (
+            <p className="line-clamp-2 min-h-9 text-[10px] leading-[1.8] text-[#a89580]">
+              {product.description}
+            </p>
+          )}
         </div>
+      </button>
 
-        {/* Price & Action Button */}
-        <div className="flex items-center justify-between mt-3 pt-2 border-t border-[#251b14]">
-          <div className="flex flex-col">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-sm sm:text-base font-black text-[#c69a59]">
-                {product.price}
-              </span>
-              <span className="text-[11px] font-bold text-[#c69a59]">ريال</span>
-            </div>
-            {product.oldPrice && (
-              <span className="text-[10px] text-[#736353] line-through -mt-0.5">
-                {product.oldPrice} ريال
-              </span>
-            )}
+      <div className="mt-auto flex items-center justify-between gap-2 px-3 pb-3 pt-2">
+        <div className="min-w-0">
+          <div className="flex items-baseline gap-1">
+            <span className="text-base font-black tabular-nums text-[#e5c378]">{product.price}</span>
+            <span className="text-[10px] font-bold text-[#b99a6c]">ريال</span>
           </div>
-
-          <button
-            id={`quick-add-${product.id}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onQuickAdd(e);
-            }}
-            aria-label={`إضافة ${product.name} إلى السلة`}
-            className="flex items-center justify-center w-8 h-8 rounded-xl bg-[#251b14] hover:bg-[#c69a59] text-[#c69a59] hover:text-[#0c0907] border border-[#3d2c1d] hover:border-[#c69a59] transition-all active:scale-95 shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+          {product.oldPrice && product.oldPrice > product.price && (
+            <span className="text-[9px] text-[#8c7967] line-through">{product.oldPrice} ريال</span>
+          )}
         </div>
+
+        <button
+          type="button"
+          id={`quick-add-${product.id}`}
+          onClick={onQuickAdd}
+          aria-label={`إضافة ${product.name} إلى السلة`}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#b58b50]/50 bg-[#c69a59] text-[#17100c] shadow-[0_5px_14px_rgba(198,154,89,0.2)] transition-all hover:scale-105 hover:bg-[#e5c378] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f5d496] focus-visible:ring-offset-2 focus-visible:ring-offset-[#17100c]"
+        >
+          <Plus className="h-4 w-4" strokeWidth={2.8} />
+        </button>
       </div>
-    </div>
+    </article>
   );
 };

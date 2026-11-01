@@ -33,13 +33,33 @@ import { AccountView } from './components/AccountView';
 import { AdminDashboard } from './components/AdminDashboard';
 
 export default function App() {
+  // Register the production service worker for installability and resilient app-shell caching.
+  useEffect(() => {
+    if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
+      navigator.serviceWorker.register('/sw.js').catch((error) => {
+        console.warn('MAZAQ service worker registration failed:', error);
+      });
+    }
+  }, []);
+
+  // Keep the offline indicator reactive when connectivity changes.
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const updateConnection = () => setIsOnline(navigator.onLine);
+    window.addEventListener('online', updateConnection);
+    window.addEventListener('offline', updateConnection);
+    return () => {
+      window.removeEventListener('online', updateConnection);
+      window.removeEventListener('offline', updateConnection);
+    };
+  }, []);
+
   // Splash Screen State
   const [showSplash, setShowSplash] = useState(true);
 
   // App View & Tab State
   const [currentTab, setCurrentTab] = useState<TabKey>('home');
   const [activeOverlay, setActiveOverlay] = useState<'cart' | 'checkout' | 'tracking' | null>(null);
-  const [showAdminPortal, setShowAdminPortal] = useState(false);
 
   // Viewport Frame Toggle (Mobile Mockup Frame vs Full Responsive Desktop)
   const [isMobileFrame, setIsMobileFrame] = useState(false);
@@ -216,6 +236,10 @@ export default function App() {
     return p.categoryId === selectedCategoryId;
   });
 
+  if (window.location.pathname.replace(/\/+$/, '') === '/admin') {
+    return <div className="min-h-screen bg-[#0c0907]"><AdminDashboard onClose={() => { window.location.href = '/'; }} onDataChanged={loadInitialData} /></div>;
+  }
+
   return (
     <div
       className="min-h-screen bg-[#0c0907] text-[#f5ebe1] flex flex-col items-center justify-start selection:bg-[#c69a59] selection:text-[#0c0907]"
@@ -239,11 +263,15 @@ export default function App() {
             : 'max-w-7xl'
         } flex flex-col flex-1 bg-[#0c0907] relative`}
       >
+        {!isOnline && (
+          <div role="status" className="mx-3 mt-3 rounded-xl border border-amber-700/50 bg-amber-950/60 px-3 py-2 text-center text-xs text-amber-200">
+            أنت غير متصل بالإنترنت — تتصفح آخر المنتجات والأسعار المحفوظة. إرسال الطلب وتأكيد السعر يحتاجان اتصالاً.
+          </div>
+        )}
         {/* Navigation Header */}
         <Header
           cartCount={cartCount}
           onOpenCart={() => setActiveOverlay('cart')}
-          onOpenAdmin={() => setShowAdminPortal(true)}
           onGoHome={() => {
             setActiveOverlay(null);
             setCurrentTab('home');
@@ -439,7 +467,6 @@ export default function App() {
                   ordersCount={myOrders.length}
                   onGoHome={() => setCurrentTab('home')}
                   onGoOrders={() => setCurrentTab('orders')}
-                  onOpenAdmin={() => setShowAdminPortal(true)}
                 />
               )}
             </>
@@ -472,15 +499,6 @@ export default function App() {
         />
       )}
 
-      {/* ========================================================
-          MODAL: OWNER ADMIN PORTAL
-      ======================================================== */}
-      {showAdminPortal && (
-        <AdminDashboard
-          onClose={() => setShowAdminPortal(false)}
-          onDataChanged={() => loadInitialData()}
-        />
-      )}
     </div>
   );
 }

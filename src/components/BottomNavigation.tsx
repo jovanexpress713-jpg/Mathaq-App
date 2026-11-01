@@ -1,6 +1,6 @@
 /**
  * MAZAQ Bottom Navigation Bar
- * Recreates the authentic bottom navigation seen across all screens in IMG-20260912-WA0019.jpg
+ * Responsive, safe-area-aware navigation that stays inside the app frame.
  */
 
 import React from 'react';
@@ -36,9 +36,9 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
     <nav
       id="bottom-navigation"
       aria-label="التنقل الرئيسي"
-      className="fixed bottom-0 left-0 right-0 z-40 bg-[#120d0a]/95 backdrop-blur-lg border-t border-[#2d2118] px-4 py-2"
+      className="sticky bottom-0 z-40 mt-auto w-full border-t border-[#3a2a1d]/90 bg-[#120d0a]/95 px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-xl shadow-[0_-10px_30px_rgba(0,0,0,0.22)]"
     >
-      <div className="max-w-md mx-auto flex items-center justify-around">
+      <div className="mx-auto flex max-w-md items-center justify-around gap-1">
         {navItems.map((item) => {
           const isActive = currentTab === item.key;
           const Icon = item.icon;
@@ -46,32 +46,28 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
           return (
             <button
               key={item.key}
+              type="button"
               id={item.id}
               onClick={() => onTabChange(item.key)}
-              className={`relative flex flex-col items-center justify-center w-16 py-1 transition-all duration-200 ${
-                isActive ? 'text-[#c69a59] font-bold' : 'text-[#857361] hover:text-[#b8a594]'
+              aria-current={isActive ? 'page' : undefined}
+              className={`group relative flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-1.5 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e5c378] focus-visible:ring-offset-2 focus-visible:ring-offset-[#120d0a] ${
+                isActive
+                  ? 'bg-[#c69a59]/10 text-[#e5c378]'
+                  : 'text-[#9b8977] hover:bg-white/[0.035] hover:text-[#f5ebe1]'
               }`}
             >
-              <div className="relative">
-                <Icon
-                  className={`w-5 h-5 transition-transform duration-200 ${
-                    isActive ? 'scale-110 drop-shadow-[0_0_8px_rgba(198,154,89,0.5)]' : ''
-                  }`}
-                />
+              <span className="relative">
+                <Icon className={`h-5 w-5 transition-transform duration-200 ${isActive ? 'scale-110' : 'group-hover:-translate-y-0.5'}`} />
                 {item.badge !== undefined && (
-                  <span className="absolute -top-1.5 -right-2 flex items-center justify-center min-w-4 h-4 px-1 text-[10px] font-bold text-white bg-[#c69a59] rounded-full">
+                  <span className="absolute -right-2 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-[#120d0a] bg-[#c69a59] px-1 text-[9px] font-black text-[#120d0a]">
                     {item.badge}
                   </span>
                 )}
-              </div>
-              <span className={`text-[11px] mt-1 transition-colors ${isActive ? 'font-bold text-[#c69a59]' : 'font-medium'}`}>
+              </span>
+              <span className={`text-[10px] leading-none ${isActive ? 'font-extrabold' : 'font-semibold'}`}>
                 {item.label}
               </span>
-
-              {/* Active gold dot */}
-              {isActive && (
-                <span className="w-1 h-1 bg-[#c69a59] rounded-full mt-0.5 shadow-[0_0_6px_#c69a59]" />
-              )}
+              {isActive && <span className="absolute bottom-0 h-0.5 w-5 rounded-full bg-[#c69a59] shadow-[0_0_10px_rgba(198,154,89,0.65)]" />}
             </button>
           );
         })}

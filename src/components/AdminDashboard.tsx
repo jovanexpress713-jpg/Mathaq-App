@@ -26,6 +26,9 @@ import {
   DollarSign,
   Clock,
   CheckCircle2,
+  Store,
+  TicketPercent,
+  Bell,
 } from 'lucide-react';
 import {
   Category,
@@ -39,6 +42,9 @@ import {
 } from '../types';
 import { api, removeAuthToken } from '../services/api';
 import { MazaqLogo } from './MazaqLogo';
+import { GroceryAccountsPanel } from './GroceryAccountsPanel';
+import { CouponsPanel } from './CouponsPanel';
+import { NotificationsPanel } from './NotificationsPanel';
 
 interface AdminDashboardProps {
   onClose: () => void;
@@ -48,8 +54,11 @@ interface AdminDashboardProps {
 type AdminTab =
   | 'stats'
   | 'products'
+  | 'groceries'
   | 'categories'
   | 'offers'
+  | 'coupons'
+  | 'notifications'
   | 'orders'
   | 'settings'
   | 'audit';
@@ -292,8 +301,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               { id: 'stats', label: 'نظرة عامة وإحصائيات', icon: TrendingUp },
               { id: 'orders', label: 'إدارة الطلبات المباشرة', icon: ClipboardList, badge: orders.length },
               { id: 'products', label: 'المنتجات وقائمة الأصناف', icon: Package, badge: products.length },
+              { id: 'groceries', label: 'حسابات البقالات', icon: Store },
               { id: 'categories', label: 'أقسام المتجر', icon: LayoutGrid, badge: categories.length },
               { id: 'offers', label: 'سلايدر العروض الترويجية', icon: Sparkles, badge: offers.length },
+              { id: 'coupons', label: 'الكوبونات والتسويق', icon: TicketPercent },
+              { id: 'notifications', label: 'مركز الإشعارات', icon: Bell },
               { id: 'settings', label: 'إعدادات المتجر والتوصيل', icon: SettingsIcon },
               { id: 'audit', label: 'سجل العمليات والرقابة', icon: FileText },
             ].map((item) => {
@@ -368,8 +380,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <option value="stats">نظرة عامة</option>
                 <option value="orders">الطلبات</option>
                 <option value="products">المنتجات</option>
+                <option value="groceries">حسابات البقالات</option>
                 <option value="categories">الأقسام</option>
                 <option value="offers">العروض</option>
+                <option value="coupons">الكوبونات والتسويق</option>
+                <option value="notifications">الإشعارات</option>
                 <option value="settings">الإعدادات</option>
                 <option value="audit">السجل</option>
               </select>
@@ -379,8 +394,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {activeTab === 'stats' && 'لوحة التحكم والتحليلات'}
               {activeTab === 'orders' && 'سجل ومتابعة الطلبات المباشرة'}
               {activeTab === 'products' && 'إدارة قائمة المنتجات والأصناف'}
+              {activeTab === 'groceries' && 'مراجعة واعتماد حسابات البقالات'}
               {activeTab === 'categories' && 'إدارة أقسام وتصنيفات المتجر'}
               {activeTab === 'offers' && 'إدارة بنرات وعروض السلايدر الترويجي'}
+              {activeTab === 'coupons' && 'مركز التسويق والكوبونات'}
+              {activeTab === 'notifications' && 'مركز الإشعارات والتنبيهات'}
               {activeTab === 'settings' && 'إعدادات المتجر ومناطق التوصيل'}
               {activeTab === 'audit' && 'سجل الرقابة والعمليات الإدارية'}
             </h1>
@@ -627,7 +645,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="flex-1 min-w-0">
                       <h4 className="text-xs font-bold text-[#f5ebe1] truncate">{prod.name}</h4>
                       <div className="flex items-baseline gap-1 text-xs text-[#c69a59] font-bold mt-0.5">
-                        <span>{prod.price} ريال</span>
+                        <span>{prod.price} ريال للأفراد</span>
+                        {prod.wholesalePrice !== undefined && prod.wholesalePrice !== null && (
+                          <span className="text-[10px] text-emerald-400 mr-1">• {prod.wholesalePrice} ريال جملة</span>
+                        )}
                       </div>
                       <span className="text-[10px] text-[#857361]">
                         {categories.find((c) => c.id === prod.categoryId)?.name || 'عام'}
@@ -665,6 +686,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
           )}
+
+          {activeTab === 'groceries' && <GroceryAccountsPanel />}
 
           {/* 4. CATEGORIES MANAGEMENT */}
           {activeTab === 'categories' && (
@@ -821,6 +844,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
           )}
+
+          {activeTab === 'coupons' && <CouponsPanel />}
+          {activeTab === 'notifications' && <NotificationsPanel />}
 
           {/* 6. SETTINGS */}
           {activeTab === 'settings' && settings && (
@@ -1074,9 +1100,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[#857361] mb-1">السعر الأساسي (ريال) *</label>
+                  <label className="block text-[#857361] mb-1">سعر الأفراد (ريال) *</label>
                   <input
                     type="number"
                     value={editingProduct.price || 0}
@@ -1085,6 +1111,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     }
                     className="w-full px-3 py-2 rounded-xl bg-[#120d0a] border border-[#2d2118] text-xs"
                   />
+                </div>
+                <div>
+                  <label className="block text-[#857361] mb-1">سعر الجملة للبقالات (ريال)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editingProduct.wholesalePrice ?? ''}
+                    onChange={(e) =>
+                      setEditingProduct({
+                        ...editingProduct,
+                        wholesalePrice: e.target.value === '' ? null : Number(e.target.value),
+                      })
+                    }
+                    placeholder="اتركه فارغاً لإيقاف بيع الجملة"
+                    className="w-full px-3 py-2 rounded-xl bg-[#120d0a] border border-[#2d2118] text-xs"
+                  />
+                  <p className="text-[10px] text-[#857361] mt-1">لا يظهر هذا السعر للزوار أو الأفراد.</p>
                 </div>
                 <div>
                   <label className="block text-[#857361] mb-1">السعر القديم قبل الخصم</label>
