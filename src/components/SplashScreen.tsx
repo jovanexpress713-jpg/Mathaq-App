@@ -139,7 +139,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_35%,rgba(205,117,35,0.2),transparent_55%)]" />
           </div>
           <div className="relative z-10 flex w-full items-center justify-between">
-            <span className="text-[10px] font-semibold tracking-[0.28em] text-[#d4a04b]" dir="ltr">MAZHAQ / BAKERY</span>
+            <span className="text-[10px] font-semibold tracking-[0.28em] text-[#d4a04b]" dir="ltr">MADHAQ / BAKERY</span>
             <Sparkles className="h-4 w-4 text-[#eab44e]" />
           </div>
           <div className="relative z-10 flex w-full max-w-md flex-1 flex-col items-center justify-center">
