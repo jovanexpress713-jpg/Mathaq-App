@@ -85,7 +85,8 @@ export const api = {
     if (search) params.set('search', search);
     if (all) params.set('all', 'true');
     const query = params.toString() ? `?${params.toString()}` : '';
-    return fetchJson<Product[]>(`${API_BASE}/products${query}`);
+    const endpoint = all ? `${API_BASE}/admin/products${query}` : `${API_BASE}/products${query}`;
+    return fetchJson<Product[]>(endpoint);
   },
   getProductById: (id: string) => fetchJson<Product>(`${API_BASE}/products/${id}`),
   createProduct: (product: Partial<Product>) =>
