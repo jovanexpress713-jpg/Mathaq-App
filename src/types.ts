@@ -163,6 +163,9 @@ export interface CustomerInfo {
 
 export interface Order {
   id: string;
+  accountType?: 'individual' | 'grocery';
+  groceryStoreName?: string;
+  groceryAccountId?: string;
   orderNumber: string; // e.g. "#12345" or "MZQ-2026-0001"
   customer: CustomerInfo;
   items: OrderItemSnapshot[];
