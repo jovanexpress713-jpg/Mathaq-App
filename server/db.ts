@@ -493,6 +493,7 @@ export function generateDefaultData(): DatabaseSchema {
       },
     ],
     coupons: [],
+    notifications: [],
     orders: [
       {
         id: 'ord-12345',
