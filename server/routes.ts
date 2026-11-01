@@ -11,7 +11,7 @@ import { db } from './db';
 import { authenticateAdmin, requireRoles, AuthenticatedRequest } from './auth';
 
 const router = Router();
-const UPLOADS_DIR = path.join(process.cwd(), 'public', 'uploads');
+const UPLOADS_DIR = path.resolve(process.env.MAZAQ_UPLOADS_DIR || path.join(process.cwd(), 'public', 'uploads'));
 
 // Ensure uploads directory exists
 if (!fs.existsSync(UPLOADS_DIR)) {
