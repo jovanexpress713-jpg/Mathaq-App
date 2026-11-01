@@ -59,6 +59,26 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('WHATSAPP');
   const [orderNotes, setOrderNotes] = useState('');
+  const [accountType, setAccountType] = useState<'individual' | 'grocery'>('individual');
+  const [groceryMode, setGroceryMode] = useState<'register' | 'login'>('register');
+  const [groceryForm, setGroceryForm] = useState({ storeName: '', contactName: '', phone: '', address: '', password: '' });
+  const [groceryAccount, setGroceryAccount] = useState<any>(null);
+  const [groceryToken, setGroceryToken] = useState('');
+  const [groceryMessage, setGroceryMessage] = useState('');
+
+  const handleGroceryAuth = async () => {
+    setGroceryMessage('');
+    try {
+      const result = groceryMode === 'register'
+        ? await api.registerGrocery(groceryForm)
+        : await api.loginGrocery(groceryForm.phone, groceryForm.password);
+      setGroceryAccount(result.account);
+      setGroceryToken(result.token);
+      setGroceryMessage(result.account.status === 'APPROVED' ? 'تم تسجيل الدخول. أسعار الجملة مفعّلة لحسابك.' : 'تم استلام بيانات البقالة. حسابك بانتظار موافقة الإدارة، ويمكنك الطلب بسعر الأفراد الآن.');
+    } catch (err: any) {
+      setGroceryMessage(err.message || 'تعذر إكمال العملية');
+    }
+  };
 
   // Calculations
   const itemsTotal = cart.reduce((sum, i) => sum + i.totalPrice, 0);
@@ -79,6 +99,14 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     }
     if (!customer.address.trim()) {
       setErrorMessage('يرجى كتابة تفاصيل العنوان والشارع');
+      return false;
+    }
+    if (accountType === 'grocery' && (!groceryToken || groceryAccount?.status !== 'APPROVED')) {
+      setErrorMessage('للطلب بسعر الجملة يجب تسجيل الدخول بحساب بقالة معتمد. يمكنك اختيار طلب أفراد بدلاً من ذلك.');
+      return false;
+    }
+    if (accountType === 'grocery' && groceryForm.phone.replace(/\\D/g, '') !== customer.phone.replace(/\\D/g, '')) {
+      setErrorMessage('رقم هاتف المستلم يجب أن يطابق رقم حساب البقالة');
       return false;
     }
     setErrorMessage(null);
@@ -117,6 +145,8 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           selectedOptions: i.selectedOptions,
         })),
         paymentMethod: 'WHATSAPP',
+        accountType,
+        groceryAccountToken: accountType === 'grocery' ? groceryToken : undefined,
         notes: orderNotes,
       });
 
@@ -249,6 +279,28 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
               <MapPin className="w-3.5 h-3.5" />
               <span>بيانات المستلم</span>
             </h2>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setAccountType('individual')} className={`rounded-xl border p-2.5 text-xs font-bold ${accountType === 'individual' ? 'border-[#c69a59] bg-[#251b14] text-[#f5ebe1]' : 'border-[#2d2118] text-[#857361]'}`}>طلب أفراد</button>
+              <button type="button" onClick={() => setAccountType('grocery')} className={`rounded-xl border p-2.5 text-xs font-bold ${accountType === 'grocery' ? 'border-[#c69a59] bg-[#251b14] text-[#f5ebe1]' : 'border-[#2d2118] text-[#857361]'}`}>حساب بقالة / جملة</button>
+            </div>
+            {accountType === 'grocery' && (
+              <div className="rounded-xl border border-[#3d2c1d] bg-[#120d0a] p-3 space-y-3">
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setGroceryMode('register')} className={`text-[11px] px-3 py-1.5 rounded-lg ${groceryMode === 'register' ? 'bg-[#c69a59] text-black' : 'bg-[#251b14] text-[#b8a594]'}`}>تسجيل بقالة جديدة</button>
+                  <button type="button" onClick={() => setGroceryMode('login')} className={`text-[11px] px-3 py-1.5 rounded-lg ${groceryMode === 'login' ? 'bg-[#c69a59] text-black' : 'bg-[#251b14] text-[#b8a594]'}`}>لدي حساب</button>
+                </div>
+                {groceryMode === 'register' && <>
+                  <input value={groceryForm.storeName} onChange={e => setGroceryForm({...groceryForm, storeName:e.target.value})} placeholder="اسم البقالة" className="w-full px-3 py-2 rounded-lg bg-[#18110c] border border-[#2d2118] text-xs" />
+                  <input value={groceryForm.contactName} onChange={e => setGroceryForm({...groceryForm, contactName:e.target.value})} placeholder="اسم المسؤول" className="w-full px-3 py-2 rounded-lg bg-[#18110c] border border-[#2d2118] text-xs" />
+                  <input value={groceryForm.address} onChange={e => setGroceryForm({...groceryForm, address:e.target.value})} placeholder="عنوان البقالة" className="w-full px-3 py-2 rounded-lg bg-[#18110c] border border-[#2d2118] text-xs" />
+                </>}
+                <input value={groceryForm.phone} onChange={e => setGroceryForm({...groceryForm, phone:e.target.value})} placeholder="رقم هاتف حساب البقالة" dir="ltr" className="w-full px-3 py-2 rounded-lg bg-[#18110c] border border-[#2d2118] text-xs text-right" />
+                <input type="password" value={groceryForm.password} onChange={e => setGroceryForm({...groceryForm, password:e.target.value})} placeholder="كلمة المرور (8 أحرف على الأقل)" className="w-full px-3 py-2 rounded-lg bg-[#18110c] border border-[#2d2118] text-xs" />
+                <button type="button" onClick={handleGroceryAuth} className="w-full rounded-lg bg-[#c69a59] text-[#120d0a] py-2.5 text-xs font-bold">{groceryMode === 'register' ? 'إرسال طلب تسجيل البقالة' : 'تسجيل الدخول'}</button>
+                {groceryMessage && <p className="text-[11px] text-[#c69a59] leading-5">{groceryMessage}</p>}
+                {groceryAccount && <p className="text-[10px] text-[#b8a594]">الحساب: {groceryAccount.storeName} — {groceryAccount.status === 'APPROVED' ? 'معتمد' : groceryAccount.status === 'PENDING' ? 'بانتظار الموافقة' : 'مرفوض'}</p>}
+              </div>
+            )}
 
             <div>
               <label className="block text-[11px] text-[#b8a594] mb-1">الاسم الكامل *</label>
