@@ -16,8 +16,9 @@ import {
   AuditLog,
 } from '../src/types';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_DIR = path.resolve(process.env.MAZAQ_DATA_DIR || path.join(process.cwd(), 'data'));
 const DB_FILE = path.join(DATA_DIR, 'mazaq_db.json');
+const DB_BACKUP_FILE = path.join(DATA_DIR, 'mazaq_db.json.bak');
 
 type SubmittedOption = { optionId?: string; choiceId?: string; optionName?: string; choiceName?: string; id?: string; name?: string };
 type ResolvedOption = { optionId: string; optionName: string; choiceId: string; choiceName: string; priceModifier: number };
@@ -636,17 +637,38 @@ class Database {
     try {
       const content = fs.readFileSync(DB_FILE, 'utf8');
       return JSON.parse(content);
-    } catch {
-      const defaultData = generateDefaultData();
-      fs.writeFileSync(DB_FILE, JSON.stringify(defaultData, null, 2), 'utf8');
-      return defaultData;
+    } catch (error) {
+      // Never replace an unreadable production database with demo defaults.
+      // Preserve the damaged file for manual recovery and stop startup loudly.
+      const recoveryFile = `${DB_FILE}.corrupt.${Date.now()}.bak`;
+      try {
+        fs.copyFileSync(DB_FILE, recoveryFile);
+      } catch {
+        // The original file remains untouched even if the recovery copy fails.
+      }
+      throw new Error(
+        `تعذر قراءة قاعدة بيانات مذاق. لم يتم استبدال البيانات. راجع الملف ${recoveryFile}. السبب: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
   private persist() {
     const tempFile = `${DB_FILE}.tmp.${Date.now()}`;
-    fs.writeFileSync(tempFile, JSON.stringify(this.data, null, 2), 'utf8');
-    fs.renameSync(tempFile, DB_FILE);
+    try {
+      fs.writeFileSync(tempFile, JSON.stringify(this.data, null, 2), 'utf8');
+      // Keep the last known-good database before replacing it.
+      if (fs.existsSync(DB_FILE)) {
+        fs.copyFileSync(DB_FILE, DB_BACKUP_FILE);
+      }
+      fs.renameSync(tempFile, DB_FILE);
+    } catch (error) {
+      try {
+        if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
+      } catch {
+        // Preserve the original persistence error.
+      }
+      throw error;
+    }
   }
 
   // Shop Settings
