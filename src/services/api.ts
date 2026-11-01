@@ -161,6 +161,11 @@ export const api = {
       body: JSON.stringify({ status }),
     }),
 
+  // Admin notifications
+  getNotifications: (unread = false) => fetchJson<Array<{ id: string; title: string; body: string; type: string; referenceId?: string; isRead: boolean; createdAt: string }>>(`${API_BASE}/admin/notifications${unread ? '?unread=true' : ''}`),
+  markNotificationRead: (id: string) => fetchJson<{ message: string }>(`${API_BASE}/admin/notifications/${id}/read`, { method: 'PATCH' }),
+  markAllNotificationsRead: () => fetchJson<{ message: string }>(`${API_BASE}/admin/notifications/read-all`, { method: 'PATCH' }),
+
   // Auth & Admin
   login: async (username: string, password: string): Promise<{ token: string; user: AdminUser }> => {
     const res = await fetch(`${API_BASE}/auth/login`, {
