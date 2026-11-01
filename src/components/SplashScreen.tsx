@@ -128,15 +128,12 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
           dir="rtl"
         >
           <div className="absolute inset-0">
-            <img
-              src="https://images.unsplash.com/photo-1509440159596-0249088772ff?q=80&w=1400&auto=format&fit=crop"
-              alt=""
-              aria-hidden="true"
-              className="h-full w-full object-cover opacity-35"
-              referrerPolicy="no-referrer"
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_28%,rgba(190,105,34,0.28),transparent_48%),linear-gradient(145deg,#1b1009_0%,#080503_58%,#030201_100%)]" />
+            <div
+              className="absolute inset-0 opacity-20"
+              style={{ backgroundImage: 'radial-gradient(rgba(236,180,82,0.32) 0.7px, transparent 0.7px)', backgroundSize: '22px 22px' }}
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-[#080503]/90 via-[#080503]/55 to-[#080503]" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_35%,rgba(205,117,35,0.2),transparent_55%)]" />
+            <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-[#080503] to-transparent" />
           </div>
           <div className="relative z-10 flex w-full items-center justify-between">
             <span className="text-[10px] font-semibold tracking-[0.28em] text-[#d4a04b]" dir="ltr">MADHAQ / BAKERY</span>
