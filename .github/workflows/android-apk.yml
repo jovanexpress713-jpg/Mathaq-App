@@ -21,6 +21,20 @@ jobs:
           node-version: 20
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Validate application
+        env:
+          VITE_API_BASE_URL: ${{ vars.MAZAQ_API_BASE_URL }}
+        run: |
+          if [ -z "$VITE_API_BASE_URL" ]; then
+            echo "::warning::MAZAQ_API_BASE_URL is not configured. The APK can be built, but API-backed orders and administration will not work in the native app."
+          else
+            case "$VITE_API_BASE_URL" in
+              https://*) echo "Public HTTPS API endpoint configured." ;;
+              *) echo "::error::MAZAQ_API_BASE_URL must use HTTPS."; exit 1 ;;
+            esac
+          fi
+          npm run lint
+          npm test
       - name: Build web app
         env:
           VITE_API_BASE_URL: ${{ vars.MAZAQ_API_BASE_URL }}
@@ -39,6 +53,8 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug
+      - name: Verify APK
+        run: test -s android/app/build/outputs/apk/debug/app-debug.apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
