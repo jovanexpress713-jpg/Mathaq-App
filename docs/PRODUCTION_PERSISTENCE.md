@@ -11,7 +11,7 @@ It is intentionally empty except for a single empty state row; no sample product
 
 The table has Row Level Security enabled. A single explicit deny policy blocks `anon` and `authenticated`; table privileges are revoked from those roles. Only the server-side `service_role` has table privileges. Its key must never be placed in browser code or any `VITE_*` variable.
 
-Migration `20261102182915_mazaq_state_access_and_cas` adds `mazaq_replace_state(expected_version, payload)`, a compare-and-swap primitive that only the `service_role` can execute. Migration `202611021831xx_mazaq_rls_policy_cleanup` consolidates the deny policy.
+Migration `20261102182915_mazaq_state_access_and_cas` adds `mazaq_replace_state(expected_version, payload)`, a compare-and-swap primitive that only the `service_role` can execute. Migration `20261102182952_mazaq_rls_policy_cleanup` consolidates the deny policy.
 
 ## Verified checks
 - Supabase table exists and contains only the empty initialization row.
